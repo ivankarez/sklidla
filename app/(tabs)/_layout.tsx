@@ -1,9 +1,9 @@
-import { Tabs, useRouter } from 'expo-router';
-import { Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, { useAnimatedStyle, withSpring, useSharedValue, withTiming } from 'react-native-reanimated';
-import { useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
+import { Tabs, useRouter } from 'expo-router';
+import { useEffect } from 'react';
+import { Platform, useColorScheme } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 
 function TabIcon({ name, focused, size, color }: { name: any, focused: boolean, size: number, color: string }) {
   const scale = useSharedValue(1);
@@ -33,21 +33,26 @@ function TabIcon({ name, focused, size, color }: { name: any, focused: boolean, 
 }
 
 function AddTabIcon() {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+
   return (
     <Animated.View style={{ 
-      width: 60, height: 60, borderRadius: 30, backgroundColor: 'black', 
+      width: 60, height: 60, borderRadius: 30, backgroundColor: isDark ? 'white' : 'black', 
       justifyContent: 'center', alignItems: 'center', 
       marginTop: -30, // Pop out perfectly over the top border
-      borderWidth: 4, borderColor: 'white',
+      borderWidth: 4, borderColor: isDark ? 'black' : 'white',
       shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 5
     }}>
-      <Ionicons name="add" size={36} color="white" />
+      <Ionicons name="add" size={36} color={isDark ? 'black' : 'white'} />
     </Animated.View>
   );
 }
 
 export default function TabsLayout() {
   const router = useRouter();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
   
   return (
     <Tabs
@@ -55,14 +60,14 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarShowLabel: false,
         animation: 'shift',
-        sceneStyle: { backgroundColor: '#FFFFFF' },
+        sceneStyle: { backgroundColor: isDark ? '#000000' : '#FFFFFF' },
         tabBarStyle: {
-          backgroundColor: '#FFFFFF',
+          backgroundColor: isDark ? '#000000' : '#FFFFFF',
           borderTopWidth: 4,
-          borderTopColor: '#000000',
+          borderTopColor: isDark ? '#FFFFFF' : '#000000',
         },
-        tabBarActiveTintColor: '#000000',
-        tabBarInactiveTintColor: '#A0A0A0',
+        tabBarActiveTintColor: isDark ? '#FFFFFF' : '#000000',
+        tabBarInactiveTintColor: isDark ? '#555555' : '#A0A0A0',
       }}
     >
       <Tabs.Screen

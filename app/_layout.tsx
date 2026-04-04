@@ -5,15 +5,27 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useEffect, useState } from 'react';
 import { initDb } from '../db/database';
 import { View, Text } from '@/src/tw';
+import { useColorScheme, Appearance } from 'react-native';
+import { getSetting } from '../db/dao';
 
 export default function RootLayout() {
   const [dbInitialized, setDbInitialized] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const colorScheme = useColorScheme();
 
   useEffect(() => {
     async function setup() {
       try {
         await initDb();
+        
+        // Load theme preference
+        const themePref = await getSetting('theme_preference') || 'system';
+        if (themePref === 'dark' || themePref === 'light') {
+          Appearance.setColorScheme(themePref);
+        } else {
+          Appearance.setColorScheme(null); // 'system'
+        }
+        
         setDbInitialized(true);
       } catch (e) {
         setError(e as Error);
@@ -38,35 +50,39 @@ export default function RootLayout() {
     );
   }
 
+  const isDark = colorScheme === 'dark';
+
   return (
-    <SafeAreaProvider className="flex-1 bg-white">
-      <StatusBar style="dark" />
-      <Stack
-        screenOptions={{
-          headerStyle: {
-            backgroundColor: '#FFFFFF',
-          },
-          headerTintColor: '#000000',
-          headerShadowVisible: false,
-          headerTitleStyle: {
-            fontWeight: '900',
-            fontFamily: 'Courier',
-          },
-          contentStyle: {
-            backgroundColor: '#FFFFFF',
-          },
-        }}
-      >
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen 
-          name="action-sheet" 
-          options={{ 
-            presentation: 'transparentModal', 
-            headerShown: false,
-            animation: 'fade'
-          }} 
-        />
-      </Stack>
+    <SafeAreaProvider style={{ flex: 1 }}>
+      <View className={`flex-1 ${isDark ? 'dark' : ''} bg-white will-change-variable`}>
+        <StatusBar style={isDark ? "light" : "dark"} />
+        <Stack
+          screenOptions={{
+            headerStyle: {
+              backgroundColor: isDark ? '#000000' : '#FFFFFF',
+            },
+            headerTintColor: isDark ? '#FFFFFF' : '#000000',
+            headerShadowVisible: false,
+            headerTitleStyle: {
+              fontWeight: '900',
+              fontFamily: 'Courier',
+            },
+            contentStyle: {
+              backgroundColor: isDark ? '#000000' : '#FFFFFF',
+            },
+          }}
+        >
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen 
+            name="action-sheet" 
+            options={{ 
+              presentation: 'transparentModal', 
+              headerShown: false,
+              animation: 'fade'
+            }} 
+          />
+        </Stack>
+      </View>
     </SafeAreaProvider>
   );
 }

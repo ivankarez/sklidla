@@ -2,7 +2,7 @@ import { Pressable, ScrollView, Text, TextInput, View } from '@/src/tw';
 import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
 import { useEffect, useState } from 'react';
-import { Alert, Modal } from 'react-native';
+import { Alert, Modal, Appearance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getSetting, setSetting } from '../../db/dao';
 
@@ -18,6 +18,9 @@ export default function SettingsScreen() {
   const [isLoading, setIsLoading] = useState(true);
 
   const [isProviderDropdownOpen, setIsProviderDropdownOpen] = useState(false);
+
+  // Theme State
+  const [themePreference, setThemePreference] = useState('system');
 
   // Calculator State
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
@@ -74,6 +77,9 @@ export default function SettingsScreen() {
         if (sActivity) setActivityLevel(sActivity);
         if (sGoal) setGoal(sGoal);
         if (sDiet) setDietaryPreference(sDiet);
+
+        const storedTheme = await getSetting('theme_preference');
+        if (storedTheme) setThemePreference(storedTheme);
       } catch {
         Alert.alert('ERROR', 'FAILED TO LOAD PROTOCOLS');
       } finally {
@@ -105,13 +111,15 @@ export default function SettingsScreen() {
         await setSetting('bio_activity', activityLevel);
         await setSetting('bio_goal', goal);
         await setSetting('bio_diet', dietaryPreference);
+
+        await setSetting('theme_preference', themePreference);
       } catch (e) {
         console.error('Failed to auto-save settings', e);
       }
     }, 500); // 500ms debounce
 
     return () => clearTimeout(timer);
-  }, [aiEnabled, aiProvider, apiKey, goalCalories, goalProtein, goalCarbs, goalFats, gender, age, weight, height, activityLevel, goal, dietaryPreference, isLoading]);
+  }, [aiEnabled, aiProvider, apiKey, goalCalories, goalProtein, goalCarbs, goalFats, gender, age, weight, height, activityLevel, goal, dietaryPreference, themePreference, isLoading]);
 
   const handleCalculate = () => {
     if (!age || !weight || !height) {
@@ -261,7 +269,7 @@ export default function SettingsScreen() {
         </View>
 
         <View className="mb-10">
-          <Text className="font-mono text-xl font-black text-black mb-1.5">AI CORE CREDENTIALS (BYOK)</Text>
+          <Text className="font-mono text-xl font-black text-black mb-1.5">AI STUFF (BYOK)</Text>
           <View className="h-1 bg-black mb-5" />
           
           <Pressable 
@@ -319,6 +327,36 @@ export default function SettingsScreen() {
             </View>
           )}
         </View>
+
+        <View className="mb-10">
+          <Text className="font-mono text-xl font-black text-black mb-1.5">VISUAL PROTOCOL</Text>
+          <View className="h-1 bg-black mb-5" />
+          
+          <View className="flex-row">
+            {[
+              { id: 'light', label: 'LIGHT' },
+              { id: 'dark', label: 'DARK' },
+              { id: 'system', label: 'SYSTEM' },
+            ].map((t) => (
+              <Pressable 
+                key={t.id}
+                className={`flex-1 border-2 border-black p-3 items-center mr-2 last:mr-0 ${themePreference === t.id ? 'bg-black' : 'bg-white'}`}
+                onPress={() => {
+                  setThemePreference(t.id);
+                  if (t.id === 'system') {
+                    Appearance.setColorScheme(null);
+                  } else {
+                    Appearance.setColorScheme(t.id as 'light' | 'dark');
+                  }
+                }}
+              >
+                <Text className={`font-mono text-xs font-black ${themePreference === t.id ? 'text-white' : 'text-black'}`}>
+                  {t.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
       </ScrollView>
 
       {/* Math Screen Calculator Modal */}
@@ -332,7 +370,7 @@ export default function SettingsScreen() {
           </View>
           
           <ScrollView contentContainerClassName="p-5 pb-10" keyboardShouldPersistTaps="handled">
-            <View className="mb-6 border-4 border-black p-4 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+            <View className="mb-6 border-4 border-black p-4 bg-white shadow-[4px_4px_0px_0px_var(--color-shadow)]">
               <Text className="font-mono text-lg font-black text-black mb-4">BIOMETRICS</Text>
               
               <View className="flex-row justify-between mb-4">

@@ -1,13 +1,22 @@
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/preflight.css" layer(base);
 @import "tailwindcss/utilities.css";
+@import "nativewind/theme";
 
 @layer theme {
   @theme {
     --font-mono: Courier, monospace;
     --color-black: #000000;
     --color-white: #FFFFFF;
+    --color-shadow: rgba(0, 0, 0, 1);
   }
+}
+
+/* Base variables */
+:root {
+  --color-black: #000000;
+  --color-white: #FFFFFF;
+  --color-shadow: rgba(0, 0, 0, 1);
 }
 
 /* Platform-specific font families */
@@ -27,4 +36,20 @@
     --font-sans: system-ui;
     --font-rounded: ui-rounded;
   }
+}
+
+/* System-based Dark Mode */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-black: #FFFFFF;
+    --color-white: #000000;
+    --color-shadow: rgba(255, 255, 255, 1);
+  }
+}
+
+/* Class-based Dark Mode for manual toggle */
+.dark {
+  --color-black: #FFFFFF;
+  --color-white: #000000;
+  --color-shadow: rgba(255, 255, 255, 1);
 }

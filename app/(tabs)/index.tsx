@@ -107,7 +107,7 @@ export default function Dashboard() {
             <Text className="font-mono text-sm font-bold text-black leading-none">{goals.cal} MAX</Text>
           </View>
           
-          <View className="border-4 border-black p-4 mb-8 bg-white" style={{ boxShadow: "4px 4px 0px 0px rgba(0,0,0,1)" }}>
+          <View className="border-4 border-black p-4 mb-8 bg-white shadow-[4px_4px_0px_0px_var(--color-shadow)]">
             <Text 
               className="font-mono font-black text-black tracking-tighter" 
               style={{ fontSize: 64, lineHeight: 64 }}

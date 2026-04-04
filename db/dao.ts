@@ -1,0 +1,112 @@
+import { getDb } from './database';
+
+export const getSetting = async (key: string): Promise<string | null> => {
+  const db = await getDb();
+  const result = await db.getFirstAsync<{ value: string }>(
+    'SELECT value FROM settings WHERE key = ?',
+    [key]
+  );
+  return result?.value || null;
+};
+
+export const setSetting = async (key: string, value: string): Promise<void> => {
+  const db = await getDb();
+  await db.runAsync(
+    'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
+    [key, value]
+  );
+};
+
+export interface Food {
+  id: number;
+  name: string;
+  brand: string | null;
+  calories_per_100g: number;
+  protein_per_100g: number;
+  carbs_per_100g: number;
+  fats_per_100g: number;
+}
+
+export const addFood = async (food: Omit<Food, 'id'>): Promise<number> => {
+  const db = await getDb();
+  const result = await db.runAsync(
+    `INSERT INTO foods (name, brand, calories_per_100g, protein_per_100g, carbs_per_100g, fats_per_100g)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [
+      food.name,
+      food.brand || null,
+      food.calories_per_100g,
+      food.protein_per_100g,
+      food.carbs_per_100g,
+      food.fats_per_100g,
+    ]
+  );
+  return result.lastInsertRowId;
+};
+
+export const searchFoods = async (query: string): Promise<Food[]> => {
+  const db = await getDb();
+  return await db.getAllAsync<Food>(
+    'SELECT * FROM foods WHERE name LIKE ? OR brand LIKE ?',
+    [`%${query}%`, `%${query}%`]
+  );
+};
+
+export const addServingSize = async (foodId: number, name: string, weightInGrams: number): Promise<number> => {
+  const db = await getDb();
+  const result = await db.runAsync(
+    'INSERT INTO serving_sizes (food_id, name, weight_in_grams) VALUES (?, ?, ?)',
+    [foodId, name, weightInGrams]
+  );
+  return result.lastInsertRowId;
+};
+
+export const getServingSizes = async (foodId: number) => {
+  const db = await getDb();
+  return await db.getAllAsync<{ id: number, name: string, weight_in_grams: number }>(
+    'SELECT * FROM serving_sizes WHERE food_id = ?',
+    [foodId]
+  );
+};
+
+export const logFood = async (
+  foodId: number,
+  servingSizeId: number | null,
+  amountLogged: number,
+  hardcodedCalories: number,
+  hardcodedProtein: number,
+  hardcodedCarbs: number,
+  hardcodedFats: number
+): Promise<number> => {
+  const db = await getDb();
+  const result = await db.runAsync(
+    `INSERT INTO logs (food_id, serving_size_id, amount_logged, hardcoded_calories, hardcoded_protein, hardcoded_carbs, hardcoded_fats)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [foodId, servingSizeId, amountLogged, hardcodedCalories, hardcodedProtein, hardcodedCarbs, hardcodedFats]
+  );
+  return result.lastInsertRowId;
+};
+
+export interface LogEntry {
+  id: number;
+  food_id: number;
+  serving_size_id: number | null;
+  amount_logged: number;
+  hardcoded_calories: number;
+  hardcoded_protein: number;
+  hardcoded_carbs: number;
+  hardcoded_fats: number;
+  logged_at: string;
+  name: string;
+}
+
+export const getTodaysLogs = async (): Promise<LogEntry[]> => {
+  const db = await getDb();
+  return await db.getAllAsync<LogEntry>(
+    `SELECT l.*, f.name 
+     FROM logs l 
+     JOIN foods f ON l.food_id = f.id 
+     WHERE date(l.logged_at) = date('now', 'localtime')
+     ORDER BY l.logged_at DESC`
+  );
+};

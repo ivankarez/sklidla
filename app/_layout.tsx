@@ -74,11 +74,11 @@ export default function RootLayout() {
         >
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen 
-            name="action-sheet" 
+            name="log-food" 
             options={{ 
-              presentation: 'transparentModal', 
+              presentation: 'modal', 
               headerShown: false,
-              animation: 'fade'
+              animation: 'slide_from_bottom'
             }} 
           />
         </Stack>

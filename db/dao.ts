@@ -44,12 +44,34 @@ export const addFood = async (food: Omit<Food, 'id'>): Promise<number> => {
   return result.lastInsertRowId;
 };
 
+export const updateFood = async (id: number, food: Omit<Food, 'id'>): Promise<void> => {
+  const db = await getDb();
+  await db.runAsync(
+    `UPDATE foods SET name = ?, brand = ?, calories_per_100g = ?, protein_per_100g = ?, carbs_per_100g = ?, fats_per_100g = ?
+     WHERE id = ?`,
+    [
+      food.name,
+      food.brand || null,
+      food.calories_per_100g,
+      food.protein_per_100g,
+      food.carbs_per_100g,
+      food.fats_per_100g,
+      id,
+    ]
+  );
+};
+
 export const searchFoods = async (query: string): Promise<Food[]> => {
   const db = await getDb();
   return await db.getAllAsync<Food>(
     'SELECT * FROM foods WHERE name LIKE ? OR brand LIKE ?',
     [`%${query}%`, `%${query}%`]
   );
+};
+
+export const getAllFoods = async (): Promise<Food[]> => {
+  const db = await getDb();
+  return await db.getAllAsync<Food>('SELECT * FROM foods ORDER BY name ASC');
 };
 
 export const addServingSize = async (foodId: number, name: string, weightInGrams: number): Promise<number> => {
@@ -59,6 +81,11 @@ export const addServingSize = async (foodId: number, name: string, weightInGrams
     [foodId, name, weightInGrams]
   );
   return result.lastInsertRowId;
+};
+
+export const deleteServingSizes = async (foodId: number): Promise<void> => {
+  const db = await getDb();
+  await db.runAsync('DELETE FROM serving_sizes WHERE food_id = ?', [foodId]);
 };
 
 export const getServingSizes = async (foodId: number) => {

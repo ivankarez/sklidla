@@ -95,7 +95,7 @@ export default function TabsLayout() {
           tabPress: (e) => {
             e.preventDefault();
             if (Platform.OS === 'ios') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            router.push('/action-sheet');
+            router.push('/log-food');
           },
         }}
       />

@@ -2,6 +2,7 @@ import '../src/global.css';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useEffect, useState } from 'react';
 import { initDb } from '../db/database';
 import { View, Text } from '@/src/tw';
@@ -53,7 +54,8 @@ export default function RootLayout() {
   const isDark = colorScheme === 'dark';
 
   return (
-    <SafeAreaProvider style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider style={{ flex: 1 }}>
       <View className={`flex-1 ${isDark ? 'dark' : ''} bg-white will-change-variable`}>
         <StatusBar style={isDark ? "light" : "dark"} />
         <Stack
@@ -84,5 +86,6 @@ export default function RootLayout() {
         </Stack>
       </View>
     </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

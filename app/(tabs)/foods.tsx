@@ -1,8 +1,7 @@
-import { Pressable, Text, TextInput, View } from "@/src/tw";
+import { Pressable, Text, TextInput, View, SafeAreaView } from "@/src/tw";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { FlatList } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Food, searchFoods, getAllFoods } from "../../db/dao";
 
 export default function LibraryScreen() {
@@ -57,7 +56,7 @@ export default function LibraryScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-white" edges={["top", "left", "right"]}>
+    <SafeAreaView style={{ flex: 1 }} edges={["top", "left", "right"]}>
       <View className="flex-row items-center justify-between px-4 pb-4">
         <View className="w-15" />
         <Text className="font-mono text-xl font-black text-black">

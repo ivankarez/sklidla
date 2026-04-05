@@ -6,6 +6,7 @@ import {
 import { Link as RouterLink } from "expo-router";
 import Animated from "react-native-reanimated";
 import React from "react";
+import { SafeAreaView as RNSafeAreaView } from 'react-native-safe-area-context';
 import {
   View as RNView,
   Text as RNText,
@@ -15,6 +16,13 @@ import {
   TextInput as RNTextInput,
   StyleSheet,
 } from "react-native";
+
+export const SafeAreaView = React.forwardRef<any, React.ComponentProps<typeof RNSafeAreaView> & { className?: string }>(
+  (props, ref) => {
+    return useCssElement(RNSafeAreaView, { ...props, ref }, { className: "style" });
+  }
+);
+SafeAreaView.displayName = "CSS(SafeAreaView)";
 
 // CSS-enabled Link
 export const Link = (
@@ -105,7 +113,8 @@ export const AnimatedScrollView = (
 function XXTouchableHighlight(
   props: React.ComponentProps<typeof RNTouchableHighlight>
 ) {
-  const { underlayColor, ...style } = StyleSheet.flatten(props.style) || {};
+  const flattened = StyleSheet.flatten(props.style) as any;
+  const { underlayColor, ...style } = flattened || {};
   return (
     <RNTouchableHighlight
       underlayColor={underlayColor}

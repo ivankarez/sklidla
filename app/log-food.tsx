@@ -3,13 +3,14 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { FlatList, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Food, searchFoods, getAllFoods, getServingSizes } from "../db/dao";
+import { Food, searchFoods, getAllFoods, getServingSizes, logFood } from "../db/dao";
 
 type SelectedFoodEntry = {
   food: Food;
   amount: string;
   unit: string;
   weight: number; // weight multiplier to grams
+  servingSizeId: number | null;
 };
 
 export default function LogFoodScreen() {
@@ -22,7 +23,7 @@ export default function LogFoodScreen() {
   const [configuringFood, setConfiguringFood] = useState<Food | null>(null);
   const [servingSizes, setServingSizes] = useState<{ id: number, name: string, weight_in_grams: number }[]>([]);
   const [amount, setAmount] = useState("100");
-  const [selectedUnit, setSelectedUnit] = useState<{ name: string, weight: number }>({ name: 'grams', weight: 1 });
+  const [selectedUnit, setSelectedUnit] = useState<{ name: string, weight: number, id: number | null }>({ name: 'grams', weight: 1, id: null });
 
   useEffect(() => {
     async function performSearch() {
@@ -44,10 +45,10 @@ export default function LogFoodScreen() {
     setConfiguringFood(food);
     if (sizes.length > 0) {
       setAmount("1");
-      setSelectedUnit({ name: sizes[0].name, weight: sizes[0].weight_in_grams });
+      setSelectedUnit({ name: sizes[0].name, weight: sizes[0].weight_in_grams, id: sizes[0].id });
     } else {
       setAmount("100");
-      setSelectedUnit({ name: 'grams', weight: 1 });
+      setSelectedUnit({ name: 'grams', weight: 1, id: null });
     }
   };
 
@@ -55,7 +56,7 @@ export default function LogFoodScreen() {
     if (!configuringFood) return;
     setSelectedFoods((prev) => [
       ...prev,
-      { food: configuringFood, amount, unit: selectedUnit.name, weight: selectedUnit.weight }
+      { food: configuringFood, amount, unit: selectedUnit.name, weight: selectedUnit.weight, servingSizeId: selectedUnit.id }
     ]);
     setConfiguringFood(null);
   };
@@ -64,8 +65,31 @@ export default function LogFoodScreen() {
     setSelectedFoods((prev) => prev.filter((_, index) => index !== indexToRemove));
   };
 
+  const handleSaveAll = async () => {
+    for (const item of selectedFoods) {
+      const numericAmount = parseFloat(item.amount) || 0;
+      const currentMultiplier = item.weight / 100;
+      
+      const currentCals = item.food.calories_per_100g * currentMultiplier * numericAmount;
+      const currentPro = item.food.protein_per_100g * currentMultiplier * numericAmount;
+      const currentCar = item.food.carbs_per_100g * currentMultiplier * numericAmount;
+      const currentFat = item.food.fats_per_100g * currentMultiplier * numericAmount;
+
+      await logFood(
+        item.food.id,
+        item.servingSizeId,
+        numericAmount,
+        currentCals,
+        currentPro,
+        currentCar,
+        currentFat
+      );
+    }
+    router.replace('/');
+  };
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }} edges={["top", "bottom", "left", "right"]}>
+    <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom", "left", "right"]}>
       <View className="flex-row items-center justify-between px-4 pb-4 border-b-4 border-black">
         <Pressable onPress={() => router.back()} className="p-1.5">
           <Text className="font-mono text-sm font-bold text-black">[X] CANCEL</Text>
@@ -74,7 +98,7 @@ export default function LogFoodScreen() {
           LOG FUEL
         </Text>
         <Pressable 
-          onPress={() => router.back()} 
+          onPress={handleSaveAll} 
           className="p-1.5"
         >
           <Text className="font-mono text-sm font-bold text-black">[+] SAVE</Text>
@@ -138,7 +162,7 @@ export default function LogFoodScreen() {
               {servingSizes.map((size) => (
                 <Pressable
                   key={size.id}
-                  onPress={() => setSelectedUnit({ name: size.name, weight: size.weight_in_grams })}
+                  onPress={() => setSelectedUnit({ name: size.name, weight: size.weight_in_grams, id: size.id })}
                   className={`border-4 border-black py-3 px-4 ${selectedUnit.name === size.name ? 'bg-black' : 'bg-white'}`}
                 >
                   <Text className={`font-mono text-base font-bold ${selectedUnit.name === size.name ? 'text-white' : 'text-black'}`}>
@@ -147,7 +171,7 @@ export default function LogFoodScreen() {
                 </Pressable>
               ))}
               <Pressable
-                onPress={() => setSelectedUnit({ name: 'grams', weight: 1 })}
+                onPress={() => setSelectedUnit({ name: 'grams', weight: 1, id: null })}
                 className={`border-4 border-black py-3 px-4 ${selectedUnit.name === 'grams' ? 'bg-black' : 'bg-white'}`}
               >
                 <Text className={`font-mono text-base font-bold ${selectedUnit.name === 'grams' ? 'text-white' : 'text-black'}`}>

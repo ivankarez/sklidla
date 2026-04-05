@@ -1,8 +1,7 @@
-import { Pressable, ScrollView, Text, TextInput, View } from '@/src/tw';
+import { Pressable, ScrollView, Text, TextInput, View, SafeAreaView } from '@/src/tw';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { addFood, addServingSize, deleteServingSizes, getServingSizes, updateFood } from '../db/dao';
 
 export default function ManualEntryScreen() {
@@ -87,7 +86,7 @@ export default function ManualEntryScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-white" edges={['bottom', 'top']}>
+    <SafeAreaView style={{ flex: 1 }} edges={['bottom', 'top']}>
       <Stack.Screen options={{ headerShown: false }} />
       
       <View className="flex-row items-center justify-between p-4 border-b-4 border-black">

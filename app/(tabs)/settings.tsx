@@ -205,7 +205,7 @@ export default function SettingsScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-white" edges={['top', 'left', 'right']}>
+    <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>
       <View className="items-center py-2.5 mb-2.5">
         <Text className="font-mono text-xl font-black text-black">SETTINGS</Text>
       </View>
@@ -361,7 +361,7 @@ export default function SettingsScreen() {
 
       {/* Math Screen Calculator Modal */}
       <Modal visible={isCalculatorOpen} animationType="slide" transparent={false}>
-        <SafeAreaView className="flex-1 bg-white" edges={['top', 'bottom']}>
+        <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
           <View className="flex-row items-center py-4 mb-2 border-b-4 border-black px-5 justify-between">
             <Text className="font-mono text-2xl font-black text-black tracking-widest">MATH SCREEN</Text>
             <Pressable onPress={() => setIsCalculatorOpen(false)} className="bg-black p-1">

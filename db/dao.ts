@@ -64,14 +64,25 @@ export const updateFood = async (id: number, food: Omit<Food, 'id'>): Promise<vo
 export const searchFoods = async (query: string): Promise<Food[]> => {
   const db = await getDb();
   return await db.getAllAsync<Food>(
-    'SELECT * FROM foods WHERE name LIKE ? OR brand LIKE ?',
+    `SELECT f.* 
+     FROM foods f 
+     LEFT JOIN logs l ON f.id = l.food_id 
+     WHERE f.name LIKE ? OR f.brand LIKE ? 
+     GROUP BY f.id 
+     ORDER BY MAX(l.logged_at) DESC NULLS LAST, f.name ASC`,
     [`%${query}%`, `%${query}%`]
   );
 };
 
 export const getAllFoods = async (): Promise<Food[]> => {
   const db = await getDb();
-  return await db.getAllAsync<Food>('SELECT * FROM foods ORDER BY name ASC');
+  return await db.getAllAsync<Food>(
+    `SELECT f.* 
+     FROM foods f 
+     LEFT JOIN logs l ON f.id = l.food_id 
+     GROUP BY f.id 
+     ORDER BY MAX(l.logged_at) DESC NULLS LAST, f.name ASC`
+  );
 };
 
 export const addServingSize = async (foodId: number, name: string, weightInGrams: number): Promise<number> => {
@@ -133,7 +144,24 @@ export const getTodaysLogs = async (): Promise<LogEntry[]> => {
     `SELECT l.*, f.name 
      FROM logs l 
      JOIN foods f ON l.food_id = f.id 
-     WHERE date(l.logged_at) = date('now', 'localtime')
+     WHERE date(l.logged_at, 'localtime') = date('now', 'localtime')
      ORDER BY l.logged_at DESC`
   );
+};
+
+export const getLogsByDate = async (dateString: string): Promise<LogEntry[]> => {
+  const db = await getDb();
+  return await db.getAllAsync<LogEntry>(
+    `SELECT l.*, f.name 
+     FROM logs l 
+     JOIN foods f ON l.food_id = f.id 
+     WHERE date(l.logged_at, 'localtime') = ?
+     ORDER BY l.logged_at DESC`,
+    [dateString]
+  );
+};
+
+export const deleteLog = async (id: number): Promise<void> => {
+  const db = await getDb();
+  await db.runAsync('DELETE FROM logs WHERE id = ?', [id]);
 };

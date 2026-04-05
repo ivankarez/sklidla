@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, Pressable, TextInput } from '@/src/tw';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, Pressable, TextInput, SafeAreaView } from '@/src/tw';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { getServingSizes, logFood } from '../db/dao';
 
@@ -57,7 +56,7 @@ export default function VerificationScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-white" edges={['bottom', 'top']}>
+    <SafeAreaView style={{ flex: 1 }} edges={['bottom', 'top']}>
       <View className="flex-row items-center justify-between px-4 pb-4 border-b-4 border-black">
         <Pressable onPress={() => router.back()} className="p-1.5">
           <Text className="font-mono text-base font-bold text-black">[ ABORT ]</Text>

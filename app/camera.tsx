@@ -1,8 +1,7 @@
 import { useState, useRef } from 'react';
 import { Alert } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { View, Text, Pressable } from '@/src/tw';
+import { View, Text, Pressable, SafeAreaView } from '@/src/tw';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { processFoodImage } from '../utils/ai';
 import { addFood } from '../db/dao';

@@ -1,8 +1,8 @@
-import { Pressable, Text, TextInput, View, SafeAreaView } from "@/src/tw";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { Pressable, SafeAreaView, Text, TextInput, View } from "@/src/tw";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { FlatList } from "react-native";
-import { Food, searchFoods, getAllFoods } from "../../db/dao";
+import { Food, getAllFoods, searchFoods } from "../../db/dao";
 
 export default function LibraryScreen() {
   const router = useRouter();
@@ -98,7 +98,7 @@ export default function LibraryScreen() {
                 }
               >
                 <Text className="font-mono text-sm font-bold text-white">
-                  ADD &quot;{query}&quot; MANUALLY
+                  ADD &quot;{query}&quot;
                 </Text>
               </Pressable>
             </View>

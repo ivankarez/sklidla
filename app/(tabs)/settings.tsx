@@ -11,6 +11,7 @@ export default function SettingsScreen() {
   const [aiProvider, setAiProvider] = useState('OpenRouter');
   const [apiKey, setApiKey] = useState('');
   const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
   const iconColor = colorScheme === 'dark' ? 'white' : 'black';
   
   const [goalCalories, setGoalCalories] = useState('');
@@ -363,11 +364,18 @@ export default function SettingsScreen() {
 
       {/* Math Screen Calculator Modal */}
       <Modal visible={isCalculatorOpen} animationType="slide" transparent={false}>
-        <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
-          <View className="flex-row items-center py-4 mb-2 border-b-4 border-black px-5 justify-between">
-            <Text className="font-mono text-2xl font-black text-black tracking-widest">MATH SCREEN</Text>
-            <Pressable onPress={() => setIsCalculatorOpen(false)} className="bg-black p-1">
-              <Ionicons name="close" size={24} color={colorScheme === 'dark' ? 'black' : 'white'} />
+        <SafeAreaView style={{ flex: 1, backgroundColor: isDark ? '#000000' : '#FFFFFF' }} edges={['top', 'bottom']}>
+          <View className={`flex-row items-center py-4 mb-2 border-b-4 px-5 justify-between ${isDark ? 'border-white' : 'border-black'}`}>
+            <Text className={`font-mono text-2xl font-black tracking-widest ${isDark ? 'text-white' : 'text-black'}`}>MATH SCREEN</Text>
+            <Pressable
+              onPress={() => setIsCalculatorOpen(false)}
+              className="p-1 border-2"
+              style={{
+                backgroundColor: isDark ? '#FFFFFF' : '#000000',
+                borderColor: isDark ? '#FFFFFF' : '#000000',
+              }}
+            >
+              <Ionicons name="close" size={24} color={isDark ? '#000000' : '#FFFFFF'} />
             </Pressable>
           </View>
           
@@ -434,7 +442,7 @@ export default function SettingsScreen() {
             </View>
 
             <View className="mb-6">
-              <Text className="font-mono text-lg font-black text-black mb-3">ACTIVITY LEVEL</Text>
+              <Text className={`font-mono text-lg font-black mb-3 ${isDark ? 'text-white' : 'text-black'}`}>ACTIVITY LEVEL</Text>
               {[
                 { id: 'sedentary', label: 'SEDENTARY (WEAK/NO EXERCISE)' },
                 { id: 'light', label: 'LIGHT (1-3 DAYS/WEEK)' },
@@ -450,13 +458,13 @@ export default function SettingsScreen() {
                   <Text className={`font-mono font-bold text-sm ${activityLevel === act.id ? 'text-white' : 'text-black'}`}>
                     {act.label}
                   </Text>
-                  {activityLevel === act.id && <Ionicons name="checkmark-sharp" size={20} color={colorScheme === 'dark' ? 'black' : 'white'} />}
+                  {activityLevel === act.id && <Ionicons name="checkmark-sharp" size={20} color="white" />}
                 </Pressable>
               ))}
             </View>
 
             <View className="mb-6">
-              <Text className="font-mono text-lg font-black text-black mb-3">PRIMARY OBJECTIVE</Text>
+              <Text className={`font-mono text-lg font-black mb-3 ${isDark ? 'text-white' : 'text-black'}`}>PRIMARY OBJECTIVE</Text>
               {[
                 { id: 'cut', label: 'STARVE THE WEAKNESS (CUT)' },
                 { id: 'maintain', label: 'MAINTAIN' },
@@ -475,7 +483,7 @@ export default function SettingsScreen() {
             </View>
 
             <View className="mb-8">
-              <Text className="font-mono text-lg font-black text-black mb-3">DIETARY DOCTRINE</Text>
+              <Text className={`font-mono text-lg font-black mb-3 ${isDark ? 'text-white' : 'text-black'}`}>DIETARY DOCTRINE</Text>
               {[
                 { id: 'meathead', label: 'STANDARD (MEATHEAD)' },
                 { id: 'keto', label: 'KETO (FAT BURNING)' },
@@ -490,7 +498,7 @@ export default function SettingsScreen() {
                   <Text className={`font-mono font-bold text-sm ${dietaryPreference === diet.id ? 'text-white' : 'text-black'}`}>
                     {diet.label}
                   </Text>
-                  {dietaryPreference === diet.id && <Ionicons name="checkmark-sharp" size={20} color={colorScheme === 'dark' ? 'black' : 'white'} />}
+                  {dietaryPreference === diet.id && <Ionicons name="checkmark-sharp" size={20} color="white" />}
                 </Pressable>
               ))}
             </View>
@@ -499,7 +507,7 @@ export default function SettingsScreen() {
               <Text className="font-mono text-2xl font-black text-white tracking-widest">LET&apos;S SUFFER</Text>
             </Pressable>
             
-            <Text className="font-mono text-xs text-center text-black px-2 leading-5 uppercase mb-4">
+            <Text className={`font-mono text-xs text-center px-2 leading-5 uppercase mb-4 ${isDark ? 'text-white' : 'text-black'}`}>
               WARNING: RELIES ON <Text className="underline" onPress={() => Alert.alert(
                 'THE SCIENCE',
                 'The Mifflin-St Jeor equation (1990) is widely considered the most accurate predictive equation for basal metabolic rate (BMR) in healthy adults.\n\nIt forms the baseline for your calorie targets before activity multipliers and goals are applied. Your protein is calculated at 2.2g/kg (1g/lb) to prevent muscle wasting during a cut and maximize synthesis during a bulk.\n\n"The app talks like a drill sergeant, but it calculates like a registered dietitian."'

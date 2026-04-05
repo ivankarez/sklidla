@@ -279,7 +279,7 @@ export default function SettingsScreen() {
             onPress={() => setAiEnabled(!aiEnabled)}
           >
             <View className={`w-8 h-8 border-2 border-black mr-4 items-center justify-center ${aiEnabled ? 'bg-black' : 'bg-white'}`}>
-              {aiEnabled && <Ionicons name="checkmark" size={24} color="white" />}
+              {aiEnabled && <Ionicons name="checkmark" size={24} color={colorScheme === 'dark' ? 'black' : 'white'} />}
             </View>
             <Text className="font-mono text-base font-bold text-black">ENABLE AI FUNCTIONS</Text>
           </Pressable>
@@ -367,7 +367,7 @@ export default function SettingsScreen() {
           <View className="flex-row items-center py-4 mb-2 border-b-4 border-black px-5 justify-between">
             <Text className="font-mono text-2xl font-black text-black tracking-widest">MATH SCREEN</Text>
             <Pressable onPress={() => setIsCalculatorOpen(false)} className="bg-black p-1">
-              <Ionicons name="close" size={24} color="white" />
+              <Ionicons name="close" size={24} color={colorScheme === 'dark' ? 'black' : 'white'} />
             </Pressable>
           </View>
           
@@ -450,7 +450,7 @@ export default function SettingsScreen() {
                   <Text className={`font-mono font-bold text-sm ${activityLevel === act.id ? 'text-white' : 'text-black'}`}>
                     {act.label}
                   </Text>
-                  {activityLevel === act.id && <Ionicons name="checkmark-sharp" size={20} color="white" />}
+                  {activityLevel === act.id && <Ionicons name="checkmark-sharp" size={20} color={colorScheme === 'dark' ? 'black' : 'white'} />}
                 </Pressable>
               ))}
             </View>
@@ -490,7 +490,7 @@ export default function SettingsScreen() {
                   <Text className={`font-mono font-bold text-sm ${dietaryPreference === diet.id ? 'text-white' : 'text-black'}`}>
                     {diet.label}
                   </Text>
-                  {dietaryPreference === diet.id && <Ionicons name="checkmark-sharp" size={20} color="white" />}
+                  {dietaryPreference === diet.id && <Ionicons name="checkmark-sharp" size={20} color={colorScheme === 'dark' ? 'black' : 'white'} />}
                 </Pressable>
               ))}
             </View>

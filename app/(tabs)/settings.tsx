@@ -2,7 +2,7 @@ import { Pressable, ScrollView, Text, TextInput, View } from '@/src/tw';
 import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
 import { useEffect, useState } from 'react';
-import { Alert, Modal, Appearance } from 'react-native';
+import { Alert, Modal, Appearance, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getSetting, setSetting } from '../../db/dao';
 
@@ -10,6 +10,8 @@ export default function SettingsScreen() {
   const [aiEnabled, setAiEnabled] = useState(true);
   const [aiProvider, setAiProvider] = useState('OpenRouter');
   const [apiKey, setApiKey] = useState('');
+  const colorScheme = useColorScheme();
+  const iconColor = colorScheme === 'dark' ? 'white' : 'black';
   
   const [goalCalories, setGoalCalories] = useState('');
   const [goalProtein, setGoalProtein] = useState('');
@@ -291,7 +293,7 @@ export default function SettingsScreen() {
                   onPress={() => setIsProviderDropdownOpen(!isProviderDropdownOpen)}
                 >
                   <Text className="font-mono text-base font-bold text-black">{aiProvider}</Text>
-                  <Ionicons name={isProviderDropdownOpen ? "chevron-up" : "chevron-down"} size={20} color="black" />
+                  <Ionicons name={isProviderDropdownOpen ? "chevron-up" : "chevron-down"} size={20} color={iconColor} />
                 </Pressable>
                 {isProviderDropdownOpen && (
                   <View className="border-2 border-t-0 border-black bg-white">

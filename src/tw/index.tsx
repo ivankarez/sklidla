@@ -31,13 +31,9 @@ export const Link = (
   return useCssElement(RouterLink, props, { className: "style" });
 };
 
-// @ts-expect-error - Link subcomponents
 Link.Trigger = RouterLink.Trigger;
-// @ts-expect-error - Link subcomponents
 Link.Menu = RouterLink.Menu;
-// @ts-expect-error - Link subcomponents
 Link.MenuAction = RouterLink.MenuAction;
-// @ts-expect-error - Link subcomponents
 Link.Preview = RouterLink.Preview;
 
 // CSS Variable hook

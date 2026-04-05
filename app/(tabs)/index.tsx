@@ -1,5 +1,5 @@
 import { View, Text, ScrollView, Pressable } from '@/src/tw';
-import { Alert } from 'react-native';
+import { Alert, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { useState, useCallback, useEffect } from 'react';
@@ -44,6 +44,8 @@ export default function Dashboard() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [goals, setGoals] = useState({ cal: 2500, pro: 150, car: 200, fat: 65 });
   const [currentDate, setCurrentDate] = useState(new Date());
+  const colorScheme = useColorScheme();
+  const iconColor = colorScheme === 'dark' ? 'white' : 'black';
 
   const getSqlDate = (date: Date) => {
     const year = date.getFullYear();
@@ -141,11 +143,11 @@ export default function Dashboard() {
       {/* Header section with Date Navigation */}
       <View className="px-5 py-4 border-b-8 border-black mb-4 flex-row justify-between items-center">
         <Pressable onPress={goToPreviousDay} className="p-2">
-          <MaterialIcons name="chevron-left" size={36} color="black" />
+          <MaterialIcons name="chevron-left" size={36} color={iconColor} />
         </Pressable>
         <Text className="font-mono text-2xl font-black text-black tracking-tighter">{displayDate}</Text>
         <Pressable onPress={goToNextDay} className="p-2">
-          <MaterialIcons name="chevron-right" size={36} color="black" />
+          <MaterialIcons name="chevron-right" size={36} color={iconColor} />
         </Pressable>
       </View>
 

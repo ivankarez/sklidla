@@ -124,13 +124,13 @@ export default function Dashboard() {
       <View className="flex-row items-center h-full">
         <Pressable 
           onPress={() => handleEdit(log)} 
-          className="bg-white w-20 h-full justify-center items-center border-l-4 border-black"
+          className="bg-white w-20 h-full justify-center items-center border-l-4 border-b-4 border-black"
         >
           <MaterialIcons name="edit" size={28} color={iconColor} />
         </Pressable>
         <Pressable 
           onPress={() => handleDelete(log.id)} 
-          className="bg-white w-20 h-full justify-center items-center border-l-4 border-black"
+          className="bg-white w-20 h-full justify-center items-center border-l-4 border-b-4 border-black"
         >
           <MaterialIcons name="delete" size={28} color={iconColor} />
         </Pressable>

@@ -1,7 +1,7 @@
 import { View, Text, ScrollView, Pressable } from '@/src/tw';
 import { Alert, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, router } from 'expo-router';
 import { useState, useCallback, useEffect } from 'react';
 import { getLogsByDate, getSetting, deleteLog, LogEntry } from '../../db/dao';
 import { Animated } from '@/src/tw/animated';
@@ -101,9 +101,13 @@ export default function Dashboard() {
   };
 
   const handleEdit = (log: LogEntry) => {
-    // Navigate to a verification or edit screen. For now just alert or navigate.
-    // Example: router.push({ pathname: '/verification', params: { logId: log.id } });
-    Alert.alert('EDIT', 'EDIT FUNCTIONALITY COMING SOON');
+    router.push({
+      pathname: '/verification',
+      params: { 
+        logId: log.id,
+        foodId: log.food_id
+      }
+    });
   };
 
   const totalCals = logs.reduce((sum, log) => sum + log.hardcoded_calories, 0);

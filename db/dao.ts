@@ -165,3 +165,32 @@ export const deleteLog = async (id: number): Promise<void> => {
   const db = await getDb();
   await db.runAsync('DELETE FROM logs WHERE id = ?', [id]);
 };
+
+export const getLogById = async (id: number): Promise<(LogEntry & { calories_per_100g: number, protein_per_100g: number, carbs_per_100g: number, fats_per_100g: number }) | null> => {
+  const db = await getDb();
+  return await db.getFirstAsync<LogEntry & { calories_per_100g: number, protein_per_100g: number, carbs_per_100g: number, fats_per_100g: number }>(
+    `SELECT l.*, f.name, f.calories_per_100g, f.protein_per_100g, f.carbs_per_100g, f.fats_per_100g
+     FROM logs l 
+     JOIN foods f ON l.food_id = f.id 
+     WHERE l.id = ?`,
+    [id]
+  );
+};
+
+export const updateLog = async (
+  id: number,
+  servingSizeId: number | null,
+  amountLogged: number,
+  hardcodedCalories: number,
+  hardcodedProtein: number,
+  hardcodedCarbs: number,
+  hardcodedFats: number
+): Promise<void> => {
+  const db = await getDb();
+  await db.runAsync(
+    `UPDATE logs 
+     SET serving_size_id = ?, amount_logged = ?, hardcoded_calories = ?, hardcoded_protein = ?, hardcoded_carbs = ?, hardcoded_fats = ?
+     WHERE id = ?`,
+    [servingSizeId, amountLogged, hardcodedCalories, hardcodedProtein, hardcodedCarbs, hardcodedFats, id]
+  );
+};

@@ -1,13 +1,16 @@
-import { Pressable, ScrollView, Text, TextInput, View, SafeAreaView } from '@/src/tw';
+import { Pressable, SafeAreaView, ScrollView, Text, TextInput, View } from '@/src/tw';
+import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert } from 'react-native';
-import { addFood, addServingSize, deleteServingSizes, getServingSizes, updateFood } from '../db/dao';
+import { Alert, useColorScheme } from 'react-native';
+import { addFood, addServingSize, deleteServingSizes, getServingSizes, getSetting, updateFood } from '../db/dao';
 
 export default function ManualEntryScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const foodIdParam = params.id ? parseInt(params.id as string) : null;
+  const colorScheme = useColorScheme();
+  const cameraIconColor = colorScheme === 'dark' ? '#FFFFFF' : '#000000';
   
   const [name, setName] = useState('');
   const [brand, setBrand] = useState('');
@@ -18,24 +21,79 @@ export default function ManualEntryScreen() {
   const [servingName, setServingName] = useState('');
   const [servingWeight, setServingWeight] = useState('');
   const [servings, setServings] = useState<{ name: string; weight: number }[]>([]);
+  const [isAiEnabled, setIsAiEnabled] = useState(false);
 
   useEffect(() => {
-    // Only populate state from params on initial mount
+    const parseNumericParam = (value: unknown): string => {
+      if (value === undefined || value === null) return '';
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric) || numeric < 0) return '';
+      return numeric.toString();
+    };
+    const parseServingSuggestions = (value: unknown): { name: string; weight: number }[] => {
+      if (!value) return [];
+      try {
+        const raw = Array.isArray(value) ? value.join('') : String(value);
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed
+          .map((item) => {
+            const itemName = typeof item?.name === 'string' ? item.name.trim() : '';
+            const itemWeight = Number(item?.weight);
+            if (!itemName || !Number.isFinite(itemWeight) || itemWeight <= 0) return null;
+            return { name: itemName, weight: itemWeight };
+          })
+          .filter((item): item is { name: string; weight: number } => item !== null);
+      } catch {
+        return [];
+      }
+    };
+
     if (params.name) setName(params.name as string);
     if (params.brand) setBrand(params.brand as string);
-    if (params.cals) setCalories(params.cals as string);
-    if (params.pro) setProtein(params.pro as string);
-    if (params.car) setCarbs(params.car as string);
-    if (params.fat) setFats(params.fat as string);
+    if (params.cals) setCalories(parseNumericParam(params.cals));
+    if (params.pro) setProtein(parseNumericParam(params.pro));
+    if (params.car) setCarbs(parseNumericParam(params.car));
+    if (params.fat) setFats(parseNumericParam(params.fat));
+
+    const aiServingSuggestions = parseServingSuggestions(params.aiServings);
+    if (aiServingSuggestions.length > 0) {
+      setServings(aiServingSuggestions);
+    } else if (params.aiServingName && params.aiServingWeight) {
+      const suggestedWeight = Number(params.aiServingWeight);
+      const suggestedName = String(params.aiServingName).trim();
+      if (suggestedName && Number.isFinite(suggestedWeight) && suggestedWeight > 0) {
+        setServings([{ name: suggestedName, weight: suggestedWeight }]);
+      }
+    }
 
     if (foodIdParam) {
       async function loadServings() {
         const dbServings = await getServingSizes(foodIdParam!);
-        setServings(dbServings.map(s => ({ name: s.name, weight: s.weight_in_grams })));
+        if (!params.aiServings && !params.aiServingName && !params.aiServingWeight) {
+          setServings(dbServings.map(s => ({ name: s.name, weight: s.weight_in_grams })));
+        }
       }
       loadServings();
     }
-  }, []); // Run only once on mount
+
+    async function loadAiAvailability() {
+      const enabled = await getSetting('ai_enabled');
+      setIsAiEnabled(enabled === 'true');
+    }
+    loadAiAvailability();
+  }, [
+    foodIdParam,
+    params.aiServingName,
+    params.aiServingWeight,
+    params.aiServings,
+    params.brand,
+    params.car,
+    params.cals,
+    params.fat,
+    params.name,
+    params.pro,
+  ]);
 
   const handleAddServing = () => {
     if (!servingName || !servingWeight) return;
@@ -46,6 +104,18 @@ export default function ManualEntryScreen() {
 
   const handleRemoveServing = (index: number) => {
     setServings(servings.filter((_, i) => i !== index));
+  };
+
+  const handleAiScan = () => {
+    router.push({
+      pathname: '/camera',
+      params: {
+        mode: 'auto',
+        source: 'manual-entry',
+        nameHint: name.trim() || undefined,
+        brandHint: brand.trim() || undefined,
+      },
+    });
   };
 
   const handleSave = async () => {
@@ -80,7 +150,7 @@ export default function ManualEntryScreen() {
       Alert.alert('SAVED', foodIdParam ? 'FOOD UPDATED.' : 'FOOD ADDED TO LIBRARY.', [
         { text: 'OK', onPress: () => router.back() }
       ]);
-    } catch (e) {
+    } catch {
       Alert.alert('ERROR', 'FAILED TO SAVE FOOD.');
     }
   };
@@ -99,7 +169,15 @@ export default function ManualEntryScreen() {
 
       <ScrollView contentContainerClassName="p-5 pb-5">
         <View className="mb-7.5">
-          <Text className="font-mono text-lg font-black text-black mb-1.5">BASE STUFF</Text>
+          <View className="flex-row items-center justify-between mb-1.5">
+            <Text className="font-mono text-lg font-black text-black">BASE STUFF</Text>
+            {isAiEnabled && !foodIdParam && (
+              <Pressable onPress={handleAiScan} className="px-2 py-1 border-2 border-black flex-row items-center">
+                <Ionicons name="camera" size={14} color={cameraIconColor} />
+                <Text className="font-mono text-xs font-black text-black ml-1">SNAP PHOTO</Text>
+              </Pressable>
+            )}
+          </View>
           <View className="h-1 bg-black mb-4" />
           
           <View className="mb-4">

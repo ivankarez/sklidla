@@ -2,22 +2,303 @@ import * as SecureStore from 'expo-secure-store';
 import { Alert } from 'react-native';
 import { getSetting } from '../db/dao';
 
-const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+type AiProviderName = 'OpenRouter' | 'OpenAI' | 'Gemini' | 'Claude';
 
-export async function processFoodImage(base64Image: string, mode: 'meal' | 'label'): Promise<any> {
-  const aiEnabled = await getSetting('ai_enabled');
-  if (aiEnabled === 'false') {
-    Alert.alert('AI DISABLED', 'AI FUNCTIONS ARE TURNED OFF IN THE VAULT.');
-    return null;
+export interface AnalyzeImageInput {
+  base64Image: string;
+  nameHint?: string;
+  brandHint?: string;
+}
+
+export interface ServingSizeSuggestion {
+  name: string;
+  weight_g: number;
+}
+
+export interface AiExtractionResult {
+  name: string;
+  brand?: string;
+  calories_per_100g: number;
+  protein_per_100g: number;
+  carbs_per_100g: number;
+  fats_per_100g: number;
+  estimated_weight_g?: number;
+  serving_size_g?: number;
+  serving_sizes?: ServingSizeSuggestion[];
+  detection_type?: 'label' | 'food' | 'mixed' | 'unknown';
+}
+
+interface AiProvider {
+  analyzeImage(input: AnalyzeImageInput): Promise<AiExtractionResult>;
+}
+
+interface ProviderConfig {
+  name: AiProviderName;
+  apiKey: string;
+}
+
+interface ChatMessagePartText {
+  type: 'text';
+  text: string;
+}
+
+interface ChatMessagePartImage {
+  type: 'image_url';
+  imageUrl: { url: string };
+}
+
+type ChatMessagePart = ChatMessagePartText | ChatMessagePartImage;
+
+const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
+const OPENROUTER_VISION_MODEL = 'openai/gpt-5.4:online';
+const OPENAI_VISION_MODEL = 'gpt-5.4';
+
+const toNonNegativeNumber = (value: unknown): number => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) return 0;
+  return numeric;
+};
+
+const sanitizeServingSizes = (value: unknown): ServingSizeSuggestion[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      const name = typeof item?.name === 'string' ? item.name.trim() : '';
+      const weight = toNonNegativeNumber(item?.weight_g);
+      if (!name || weight <= 0) return null;
+      return { name, weight_g: weight };
+    })
+    .filter((item): item is ServingSizeSuggestion => item !== null)
+    .slice(0, 3);
+};
+
+const sanitizeAiExtraction = (raw: unknown): AiExtractionResult => {
+  const data = (raw && typeof raw === 'object') ? raw as Record<string, unknown> : {};
+  const rawName = typeof data.name === 'string' ? data.name.trim() : '';
+  const invalidNames = new Set([
+    'the void',
+    'black image',
+    'unknown',
+    'n/a',
+    'none',
+    'null',
+    '',
+  ]);
+  const name = invalidNames.has(rawName.toLowerCase()) ? '' : rawName;
+  const brand = typeof data.brand === 'string' ? data.brand.trim() : undefined;
+  const detectionTypeRaw = typeof data.detection_type === 'string' ? data.detection_type : 'unknown';
+  const detection_type: AiExtractionResult['detection_type'] =
+    detectionTypeRaw === 'label' ||
+    detectionTypeRaw === 'food' ||
+    detectionTypeRaw === 'mixed'
+      ? detectionTypeRaw
+      : 'unknown';
+
+  const estimatedWeight = toNonNegativeNumber(data.estimated_weight_g);
+  const servingSize = toNonNegativeNumber(data.serving_size_g);
+
+  return {
+    name,
+    ...(brand ? { brand } : {}),
+    calories_per_100g: toNonNegativeNumber(data.calories_per_100g),
+    protein_per_100g: toNonNegativeNumber(data.protein_per_100g),
+    carbs_per_100g: toNonNegativeNumber(data.carbs_per_100g),
+    fats_per_100g: toNonNegativeNumber(data.fats_per_100g),
+    ...(estimatedWeight > 0 ? { estimated_weight_g: estimatedWeight } : {}),
+    ...(servingSize > 0 ? { serving_size_g: servingSize } : {}),
+    serving_sizes: sanitizeServingSizes(data.serving_sizes),
+    detection_type,
+  };
+};
+
+const buildUnifiedPrompt = (nameHint?: string, brandHint?: string): string => {
+  const cleanedName = nameHint?.trim();
+  const cleanedBrand = brandHint?.trim();
+
+  const hintLines: string[] = [];
+  if (cleanedName) hintLines.push(`- User-provided name hint: "${cleanedName}"`);
+  if (cleanedBrand) hintLines.push(`- User-provided brand hint: "${cleanedBrand}"`);
+  const hintBlock = hintLines.length > 0
+    ? `Context hints from user (high priority unless clearly contradicted by image):\n${hintLines.join('\n')}\n`
+    : 'No user hints provided for name/brand. If missing from image, make your best guess.\n';
+
+  return `You are a precise nutrition AI for a tracking app.
+Analyze the provided image and automatically decide what it is:
+- nutrition label,
+- food/photo of meal,
+- mixed or unclear.
+
+${hintBlock}
+Return ONLY a valid JSON object (no markdown, no explanation) with this schema:
+{
+  "detection_type": "label" | "food" | "mixed" | "unknown",
+  "name": "Best product/food name. Use hint if available and plausible; otherwise guess.",
+  "brand": "Brand if visible or strongly implied; else empty string",
+  "calories_per_100g": 0,
+  "protein_per_100g": 0,
+  "carbs_per_100g": 0,
+  "fats_per_100g": 0,
+  "estimated_weight_g": 0,
+  "serving_size_g": 0,
+  "serving_sizes": [
+    { "name": "serving", "weight_g": 40 }
+    ...
+  ],
+  "image_analysis_notes": "Optional field for your internal use, not shown to user. Include any important details about how you derived the macros, especially if estimation was involved."
+}
+
+Rules:
+- Always normalize macros to per 100g.
+- If only per-serving values are visible, convert to per 100g.
+- Include 1-3 serving sizes when possible.
+- For food photos, estimate realistic values.
+- For labels, prioritize OCR-accurate extraction.
+- Use 0 when truly unknown, never null.
+- If the image is too dark/blank/blurry to read, set detection_type to "unknown", set macros to 0, and set name to empty string.
+- Never invent joke or placeholder names like "The Void" or "Black image".`;
+};
+
+const extractTextFromContent = (content: unknown): string => {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((item) => {
+        if (typeof item === 'string') return item;
+        if (item && typeof item === 'object' && typeof (item as any).text === 'string') {
+          return (item as any).text;
+        }
+        return '';
+      })
+      .join('\n')
+      .trim();
+  }
+  if (content && typeof content === 'object') {
+    return JSON.stringify(content);
+  }
+  return '';
+};
+
+const parseMaybeJson = (rawText: string): unknown => {
+  const text = rawText.trim();
+  if (!text) throw new Error('EMPTY AI RESPONSE');
+  return JSON.parse(text);
+};
+
+const parseChatJsonContent = (responseJson: any): AiExtractionResult => {
+  if (responseJson?.error) {
+    throw new Error(responseJson.error.message || 'UNKNOWN AI FAILURE');
   }
 
-  let apiKey = await SecureStore.getItemAsync('apiKey');
-  const aiProvider = await getSetting('ai_provider') || 'OpenRouter';
+  const content = responseJson?.choices?.[0]?.message?.content;
+  console.log('RAW AI CONTENT:', content);
+  const rawText = extractTextFromContent(content);
+  const parsed = parseMaybeJson(rawText);
+  console.log('RAW AI RESPONSE:', rawText);
 
+  return sanitizeAiExtraction(parsed);
+};
+
+class OpenRouterProvider implements AiProvider {
+  constructor(private readonly config: ProviderConfig) {}
+
+  private async analyzeWithModel(input: AnalyzeImageInput, model: string): Promise<AiExtractionResult> {
+    const prompt = buildUnifiedPrompt(input.nameHint, input.brandHint);
+    const content: unknown[] = [
+      { type: 'text', text: prompt },
+      { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${input.base64Image}` } },
+    ];
+
+    const response = await fetch(OPENROUTER_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.config.apiKey}`,
+        'HTTP-Referer': 'https://sklidla.app',
+        'X-Title': 'Sklidla',
+      },
+      body: JSON.stringify({
+        model,
+        response_format: { type: 'json_object' },
+        messages: [{ role: 'user', content }],
+      }),
+    });
+
+    const json = await response.json();
+    if (!response.ok) {
+      const message = json?.error?.message || `OPENROUTER HTTP ${response.status}`;
+      throw new Error(message);
+    }
+    return parseChatJsonContent(json);
+  }
+
+  async analyzeImage(input: AnalyzeImageInput): Promise<AiExtractionResult> {
+    return this.analyzeWithModel(input, OPENROUTER_VISION_MODEL);
+  }
+}
+
+class OpenAiProvider implements AiProvider {
+  constructor(private readonly config: ProviderConfig) {}
+
+  async analyzeImage(input: AnalyzeImageInput): Promise<AiExtractionResult> {
+    const prompt = buildUnifiedPrompt(input.nameHint, input.brandHint);
+    const content: ChatMessagePart[] = [
+      { type: 'text', text: prompt },
+      { type: 'image_url', imageUrl: { url: `data:image/jpeg;base64,${input.base64Image}` } },
+    ];
+
+    const response = await fetch(OPENAI_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.config.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: OPENAI_VISION_MODEL,
+        response_format: { type: 'json_object' },
+        messages: [{ role: 'user', content }],
+      }),
+    });
+
+    const json = await response.json();
+    if (!response.ok) {
+      const message = json?.error?.message || `OPENAI HTTP ${response.status}`;
+      throw new Error(message);
+    }
+    return parseChatJsonContent(json);
+  }
+}
+
+class GeminiProvider implements AiProvider {
+  constructor(private readonly config: ProviderConfig) {}
+
+  async analyzeImage(_input: AnalyzeImageInput): Promise<AiExtractionResult> {
+    void this.config;
+    throw new Error('GEMINI DIRECT PROVIDER NOT IMPLEMENTED YET. USE OPENROUTER OR OPENAI.');
+  }
+}
+
+class ClaudeProvider implements AiProvider {
+  constructor(private readonly config: ProviderConfig) {}
+
+  async analyzeImage(_input: AnalyzeImageInput): Promise<AiExtractionResult> {
+    void this.config;
+    throw new Error('CLAUDE DIRECT PROVIDER NOT IMPLEMENTED YET. USE OPENROUTER OR OPENAI.');
+  }
+}
+
+const loadProviderConfig = async (): Promise<ProviderConfig | null> => {
+  const aiProvider = (await getSetting('ai_provider')) || 'OpenRouter';
+  const providerName: AiProviderName =
+    aiProvider === 'OpenAI' || aiProvider === 'Gemini' || aiProvider === 'Claude'
+      ? aiProvider
+      : 'OpenRouter';
+
+  let apiKey = await SecureStore.getItemAsync('apiKey');
   if (!apiKey) {
-    const orKey = await SecureStore.getItemAsync('openRouterKey');
-    const oaKey = await SecureStore.getItemAsync('openAiKey');
-    apiKey = orKey || oaKey;
+    const openRouterKey = await SecureStore.getItemAsync('openRouterKey');
+    const openAiKey = await SecureStore.getItemAsync('openAiKey');
+    apiKey = openRouterKey || openAiKey || null;
   }
 
   if (!apiKey) {
@@ -25,76 +306,40 @@ export async function processFoodImage(base64Image: string, mode: 'meal' | 'labe
     return null;
   }
 
-  const isOpenAi = aiProvider === 'OpenAI';
-  const endpoint = isOpenAi ? 'https://api.openai.com/v1/chat/completions' : OPENROUTER_URL;
-  const model = isOpenAi ? 'gpt-4o' : 'google/gemini-pro-vision';
+  return { name: providerName, apiKey };
+};
 
-  const systemPrompt = mode === 'meal' 
-    ? `You are an unhinged, brutal, highly precise nutrition AI. The user has provided an image of food. 
-Return ONLY a valid JSON object describing the MAIN food item detected, no markdown formatting.
-Schema:
-{
-  "name": "Short Name (e.g., Grilled Chicken Salad)",
-  "calories_per_100g": 150,
-  "protein_per_100g": 20,
-  "carbs_per_100g": 5,
-  "fats_per_100g": 5,
-  "estimated_weight_g": 250
-}
-Guess the macros per 100g as accurately as possible. If multiple items, combine or pick the most prominent.`
-    : `You are an OCR macro extractor. Extract data from this nutrition label.
-Return ONLY a valid JSON object, no markdown formatting.
-Schema:
-{
-  "name": "Product Name (guess from label or leave empty)",
-  "calories_per_100g": 0,
-  "protein_per_100g": 0,
-  "carbs_per_100g": 0,
-  "fats_per_100g": 0,
-  "serving_size_g": 100
-}
-Normalize all macros to 100g even if the label is per serving.`;
+const createProvider = (config: ProviderConfig): AiProvider => {
+  switch (config.name) {
+    case 'OpenAI':
+      return new OpenAiProvider(config);
+    case 'Gemini':
+      return new GeminiProvider(config);
+    case 'Claude':
+      return new ClaudeProvider(config);
+    case 'OpenRouter':
+    default:
+      return new OpenRouterProvider(config);
+  }
+};
+
+export async function processFoodImage(input: AnalyzeImageInput): Promise<AiExtractionResult | null> {
+  const aiEnabled = await getSetting('ai_enabled');
+  if (aiEnabled === 'false') {
+    Alert.alert('AI DISABLED', 'AI FUNCTIONS ARE TURNED OFF IN THE VAULT.');
+    return null;
+  }
+
+  const config = await loadProviderConfig();
+  if (!config) return null;
 
   try {
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-        ...(isOpenAi ? {} : { 'HTTP-Referer': 'https://sklidla.app', 'X-Title': 'Sklidla' })
-      },
-      body: JSON.stringify({
-        model,
-        response_format: { type: 'json_object' },
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: systemPrompt },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:image/jpeg;base64,${base64Image}`
-                }
-              }
-            ]
-          }
-        ]
-      })
-    });
-
-    const json = await response.json();
-    if (json.error) {
-      console.error(json.error);
-      Alert.alert('AI ERROR', json.error.message || 'UNKNOWN AI FAILURE');
-      return null;
-    }
-
-    const content = json.choices[0].message.content;
-    return JSON.parse(content);
+    const provider = createProvider(config);
+    return await provider.analyzeImage(input);
   } catch (error) {
     console.error(error);
-    Alert.alert('NETWORK ERROR', 'FAILED TO REACH AI CORE.');
+    const message = error instanceof Error ? error.message : 'FAILED TO REACH AI CORE.';
+    Alert.alert('AI ERROR', message);
     return null;
   }
 }

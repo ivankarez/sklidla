@@ -28,6 +28,26 @@ export interface AiExtractionResult {
   detection_type?: 'label' | 'food' | 'mixed' | 'unknown';
 }
 
+export interface FoodNameAutofillInput {
+  name: string;
+  brand: string | null;
+  calories_per_100g: number | null;
+  protein_per_100g: number | null;
+  carbs_per_100g: number | null;
+  fats_per_100g: number | null;
+  serving_sizes: ServingSizeSuggestion[] | null;
+}
+
+export interface FoodNameAutofillResult {
+  name: string | null;
+  brand: string | null;
+  calories_per_100g: number | null;
+  protein_per_100g: number | null;
+  carbs_per_100g: number | null;
+  fats_per_100g: number | null;
+  serving_sizes: ServingSizeSuggestion[] | null;
+}
+
 interface AiProvider {
   analyzeImage(input: AnalyzeImageInput): Promise<AiExtractionResult>;
 }
@@ -53,10 +73,19 @@ const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
 const OPENROUTER_VISION_MODEL = 'openai/gpt-5.4:online';
 const OPENAI_VISION_MODEL = 'gpt-5.4';
+const OPENROUTER_TEXT_MODEL = 'openai/gpt-5.4:online';
+const OPENAI_TEXT_MODEL = 'gpt-5.4';
 
 const toNonNegativeNumber = (value: unknown): number => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric < 0) return 0;
+  return numeric;
+};
+
+const toNullableNonNegativeNumber = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === '') return null;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) return null;
   return numeric;
 };
 
@@ -112,6 +141,23 @@ const sanitizeAiExtraction = (raw: unknown): AiExtractionResult => {
   };
 };
 
+const sanitizeFoodNameAutofill = (raw: unknown): FoodNameAutofillResult => {
+  const data = (raw && typeof raw === 'object') ? raw as Record<string, unknown> : {};
+  const nameRaw = typeof data.name === 'string' ? data.name.trim() : '';
+  const brandRaw = typeof data.brand === 'string' ? data.brand.trim() : '';
+  const servings = sanitizeServingSizes(data.serving_sizes);
+
+  return {
+    name: nameRaw || null,
+    brand: brandRaw || null,
+    calories_per_100g: toNullableNonNegativeNumber(data.calories_per_100g),
+    protein_per_100g: toNullableNonNegativeNumber(data.protein_per_100g),
+    carbs_per_100g: toNullableNonNegativeNumber(data.carbs_per_100g),
+    fats_per_100g: toNullableNonNegativeNumber(data.fats_per_100g),
+    serving_sizes: servings.length > 0 ? servings : null,
+  };
+};
+
 const buildUnifiedPrompt = (nameHint?: string, brandHint?: string): string => {
   const cleanedName = nameHint?.trim();
   const cleanedBrand = brandHint?.trim();
@@ -159,6 +205,33 @@ Rules:
 - Never invent joke or placeholder names like "The Void" or "Black image".`;
 };
 
+const buildFoodNameAutofillPrompt = (input: FoodNameAutofillInput): string => {
+  return `You are a precise nutrition AI for a food logging app.
+Given a partial food JSON, fill only missing nutrition and serving fields.
+
+Input JSON:
+${JSON.stringify(input, null, 2)}
+
+Return ONLY a valid JSON object (no markdown/explanations) with exactly these keys:
+{
+  "name": "string or null",
+  "brand": "string or null",
+  "calories_per_100g": number or null,
+  "protein_per_100g": number or null,
+  "carbs_per_100g": number or null,
+  "fats_per_100g": number or null,
+  "serving_sizes": [{ "name": "string", "weight_g": number }] or null
+}
+
+Rules:
+- Keep all non-null input values unchanged.
+- Fill only null fields when a realistic estimate is possible.
+- Keep all macros normalized to per 100g.
+- Use realistic nutrition ranges. Never use negative values.
+- If uncertain, keep field as null.
+- For serving_sizes, provide 1-3 practical units when inferable (e.g., slice, cup, piece), otherwise null.`;
+};
+
 const extractTextFromContent = (content: unknown): string => {
   if (typeof content === 'string') return content;
   if (Array.isArray(content)) {
@@ -185,18 +258,64 @@ const parseMaybeJson = (rawText: string): unknown => {
   return JSON.parse(text);
 };
 
-const parseChatJsonContent = (responseJson: any): AiExtractionResult => {
+const parseChatJsonRaw = (responseJson: any): unknown => {
   if (responseJson?.error) {
     throw new Error(responseJson.error.message || 'UNKNOWN AI FAILURE');
   }
-
   const content = responseJson?.choices?.[0]?.message?.content;
-  console.log('RAW AI CONTENT:', content);
   const rawText = extractTextFromContent(content);
-  const parsed = parseMaybeJson(rawText);
-  console.log('RAW AI RESPONSE:', rawText);
+  return parseMaybeJson(rawText);
+};
 
+const parseChatJsonContent = (responseJson: any): AiExtractionResult => {
+  const parsed = parseChatJsonRaw(responseJson);
   return sanitizeAiExtraction(parsed);
+};
+
+const requestOpenRouterJson = async (apiKey: string, model: string, prompt: string): Promise<unknown> => {
+  const response = await fetch(OPENROUTER_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+      'HTTP-Referer': 'https://sklidla.app',
+      'X-Title': 'Sklidla',
+    },
+    body: JSON.stringify({
+      model,
+      response_format: { type: 'json_object' },
+      messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }],
+    }),
+  });
+
+  const json = await response.json();
+  if (!response.ok) {
+    const message = json?.error?.message || `OPENROUTER HTTP ${response.status}`;
+    throw new Error(message);
+  }
+  return parseChatJsonRaw(json);
+};
+
+const requestOpenAiJson = async (apiKey: string, model: string, prompt: string): Promise<unknown> => {
+  const response = await fetch(OPENAI_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      response_format: { type: 'json_object' },
+      messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }],
+    }),
+  });
+
+  const json = await response.json();
+  if (!response.ok) {
+    const message = json?.error?.message || `OPENAI HTTP ${response.status}`;
+    throw new Error(message);
+  }
+  return parseChatJsonRaw(json);
 };
 
 class OpenRouterProvider implements AiProvider {
@@ -336,6 +455,35 @@ export async function processFoodImage(input: AnalyzeImageInput): Promise<AiExtr
   try {
     const provider = createProvider(config);
     return await provider.analyzeImage(input);
+  } catch (error) {
+    console.error(error);
+    const message = error instanceof Error ? error.message : 'FAILED TO REACH AI CORE.';
+    Alert.alert('AI ERROR', message);
+    return null;
+  }
+}
+
+export async function processFoodNameAutofill(input: FoodNameAutofillInput): Promise<FoodNameAutofillResult | null> {
+  const aiEnabled = await getSetting('ai_enabled');
+  if (aiEnabled === 'false') {
+    Alert.alert('AI DISABLED', 'AI FUNCTIONS ARE TURNED OFF IN THE VAULT.');
+    return null;
+  }
+
+  const config = await loadProviderConfig();
+  if (!config) return null;
+
+  try {
+    const prompt = buildFoodNameAutofillPrompt(input);
+    const raw =
+      config.name === 'OpenAI'
+        ? await requestOpenAiJson(config.apiKey, OPENAI_TEXT_MODEL, prompt)
+        : config.name === 'OpenRouter'
+          ? await requestOpenRouterJson(config.apiKey, OPENROUTER_TEXT_MODEL, prompt)
+          : (() => {
+              throw new Error(`${config.name.toUpperCase()} DIRECT PROVIDER NOT IMPLEMENTED YET. USE OPENROUTER OR OPENAI.`);
+            })();
+    return sanitizeFoodNameAutofill(raw);
   } catch (error) {
     console.error(error);
     const message = error instanceof Error ? error.message : 'FAILED TO REACH AI CORE.';

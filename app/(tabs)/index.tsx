@@ -142,6 +142,11 @@ export default function Dashboard() {
     );
   };
 
+  const formatAmountAndUnit = (log: LogEntry) => {
+    const unit = log.serving_size_id ? (log.serving_size_name || 'unit') : 'g';
+    return `${log.amount_logged} ${unit}`;
+  };
+
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1 }}>
       {/* Header section with Date Navigation */}
@@ -214,7 +219,7 @@ export default function Dashboard() {
                   <View className="flex-row justify-between items-center p-4 border-b-4 border-black bg-white">
                     <View className="flex-1 pr-4">
                       <Text className="font-mono text-lg font-black text-black leading-tight uppercase">{log.name}</Text>
-                      <Text className="font-mono text-sm font-bold text-black mt-1">[{log.amount_logged} {log.serving_size_id ? 'UNITS' : 'G'}]</Text>
+                      <Text className="font-mono text-sm font-bold text-black mt-1">[{formatAmountAndUnit(log)}]</Text>
                     </View>
                     <View className="items-end">
                       <Text className="font-mono text-2xl font-black text-black">{Math.round(log.hardcoded_calories)}</Text>

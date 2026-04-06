@@ -129,6 +129,7 @@ export interface LogEntry {
   id: number;
   food_id: number;
   serving_size_id: number | null;
+  serving_size_name: string | null;
   amount_logged: number;
   hardcoded_calories: number;
   hardcoded_protein: number;
@@ -141,9 +142,10 @@ export interface LogEntry {
 export const getTodaysLogs = async (): Promise<LogEntry[]> => {
   const db = await getDb();
   return await db.getAllAsync<LogEntry>(
-    `SELECT l.*, f.name 
+    `SELECT l.*, f.name, s.name as serving_size_name
      FROM logs l 
      JOIN foods f ON l.food_id = f.id 
+     LEFT JOIN serving_sizes s ON l.serving_size_id = s.id
      WHERE date(l.logged_at, 'localtime') = date('now', 'localtime')
      ORDER BY l.logged_at DESC`
   );
@@ -152,9 +154,10 @@ export const getTodaysLogs = async (): Promise<LogEntry[]> => {
 export const getLogsByDate = async (dateString: string): Promise<LogEntry[]> => {
   const db = await getDb();
   return await db.getAllAsync<LogEntry>(
-    `SELECT l.*, f.name 
+    `SELECT l.*, f.name, s.name as serving_size_name
      FROM logs l 
      JOIN foods f ON l.food_id = f.id 
+     LEFT JOIN serving_sizes s ON l.serving_size_id = s.id
      WHERE date(l.logged_at, 'localtime') = ?
      ORDER BY l.logged_at DESC`,
     [dateString]

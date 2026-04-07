@@ -61,7 +61,7 @@ export default function WelcomeScreen() {
         <View className="items-center">
           <Animated.View style={logoStyle} className="items-center mb-2">
             <Image
-              source={require('../../assets/images/logo-round.png')}
+              source={require('../../assets/images/logo-square.png')}
               className={`w-36 h-36 border-4 ${border}`}
               contentFit="contain"
             />

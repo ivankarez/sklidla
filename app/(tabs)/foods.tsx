@@ -1,6 +1,6 @@
 import { Pressable, SafeAreaView, Text, TextInput, View } from "@/src/tw";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import { FlatList } from "react-native";
 import { Food, getAllFoods, searchFoods } from "../../db/dao";
 
@@ -10,19 +10,25 @@ export default function LibraryScreen() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Food[]>([]);
 
-  useEffect(() => {
-    async function performSearch() {
-      if (query.trim() === "") {
-        const items = await getAllFoods();
-        setResults(items);
-        return;
-      }
-      const items = await searchFoods(query);
-      setResults(items);
-    }
-    const timer = setTimeout(() => performSearch(), 300);
-    return () => clearTimeout(timer);
+  const loadFoods = useCallback(async () => {
+    const trimmedQuery = query.trim();
+    const items =
+      trimmedQuery === "" ? await getAllFoods() : await searchFoods(trimmedQuery);
+    setResults(items);
   }, [query]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadFoods();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [loadFoods]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadFoods();
+    }, [loadFoods])
+  );
 
   const handleSelectFood = (food: Food) => {
     if (mode === "select") {

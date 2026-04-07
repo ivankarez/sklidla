@@ -4,7 +4,7 @@ import * as SecureStore from 'expo-secure-store';
 import { useEffect, useState } from 'react';
 import { Alert, Modal, Appearance, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getSetting, setSetting } from '../../db/dao';
+import { getSetting, setSetting, clearAllData } from '../../db/dao';
 import { MacroCalculator } from '@/src/components/macro-calculator';
 
 export default function SettingsScreen() {
@@ -286,6 +286,52 @@ export default function SettingsScreen() {
             ))}
           </View>
         </View>
+
+      <View className="mb-10">
+        <Text className="font-mono text-xl font-black text-black mb-1.5">DANGER ZONE</Text>
+        <View className="h-1 bg-black mb-5" />
+        <Pressable
+          className="bg-white border-2 border-black p-4 items-center"
+          onPress={() => {
+            Alert.alert(
+              'DELETE ALL DATA',
+              'This will permanently delete all local app data (database and keys). Are you sure?',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Yes, I am sure', onPress: () => {
+                    Alert.alert(
+                      'FINAL CONFIRMATION',
+                      'FINAL: Permanently delete all local data? This cannot be undone.',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'DELETE', style: 'destructive', onPress: async () => {
+                            try {
+                              setIsLoading(true);
+                              await clearAllData();
+                              await SecureStore.deleteItemAsync('apiKey');
+                              await SecureStore.deleteItemAsync('openRouterKey');
+                              await SecureStore.deleteItemAsync('openAiKey');
+                              setIsLoading(false);
+                              Alert.alert('DATA DELETED', 'All local data has been removed.');
+                            } catch (e) {
+                              console.error('Failed to clear data', e);
+                              setIsLoading(false);
+                              Alert.alert('ERROR', 'Failed to delete all data.');
+                            }
+                          } },
+                      ],
+                      { cancelable: false }
+                    );
+                  } },
+              ],
+              { cancelable: false }
+            );
+          }}
+        >
+          <Text className="font-mono text-base font-black text-black">DELETE ALL DATA</Text>
+        </Pressable>
+      </View>
+
       </ScrollView>
 
       {/* Math Screen Calculator Modal */}

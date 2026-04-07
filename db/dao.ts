@@ -197,3 +197,30 @@ export const updateLog = async (
     [servingSizeId, amountLogged, hardcodedCalories, hardcodedProtein, hardcodedCarbs, hardcodedFats, id]
   );
 };
+
+export const clearAllData = async (): Promise<void> => {
+  const db = await getDb();
+  try {
+    const tables = await db.getAllAsync<{ name: string }>(
+      `SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`
+    );
+
+    for (const t of tables) {
+      // skip sqlite sequence tables if any
+      if (!t.name) continue;
+      // Preserve schema, remove rows
+      await db.runAsync(`DELETE FROM "${t.name}"`);
+    }
+
+    // Reclaim space
+    try {
+      await db.execAsync('VACUUM;');
+    } catch (vacErr) {
+      // VACUUM may fail on some platforms — ignore
+      console.warn('VACUUM failed', vacErr);
+    }
+  } catch (e) {
+    console.error('Failed to clear database tables', e);
+    throw e;
+  }
+};

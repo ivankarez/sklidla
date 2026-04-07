@@ -3,6 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, useColorScheme } from 'react-native';
+import { getRandomLibraryToastMessage } from '../constants/unhinged-toast';
 import { addFood, addServingSize, deleteServingSizes, getServingSizes, getSetting, updateFood } from '../db/dao';
 import { processFoodNameAutofill } from '../utils/ai';
 
@@ -13,6 +14,8 @@ export default function ManualEntryScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const cameraIconColor = colorScheme === 'dark' ? '#FFFFFF' : '#000000';
+  const returnTo = Array.isArray(params.returnTo) ? params.returnTo[0] : params.returnTo;
+  const libraryMode = Array.isArray(params.libraryMode) ? params.libraryMode[0] : params.libraryMode;
   
   const [name, setName] = useState('');
   const [brand, setBrand] = useState('');
@@ -208,9 +211,18 @@ export default function ManualEntryScreen() {
         await addServingSize(foodId, serving.name, serving.weight);
       }
 
-      Alert.alert('SAVED', foodIdParam ? 'FOOD UPDATED.' : 'FOOD ADDED TO LIBRARY.', [
-        { text: 'OK', onPress: () => router.back() }
-      ]);
+      if (returnTo === 'library') {
+        router.replace({
+          pathname: '/(tabs)/foods',
+          params: {
+            mode: libraryMode === 'select' ? 'select' : 'manage',
+            toastMessage: getRandomLibraryToastMessage(),
+          },
+        });
+        return;
+      }
+
+      router.back();
     } catch {
       Alert.alert('ERROR', 'COULD NOT SAVE THAT FOOD.');
     }

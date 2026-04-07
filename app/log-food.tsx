@@ -1,9 +1,10 @@
 import { Pressable, Text, TextInput, View } from "@/src/tw";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { FlatList, Platform, useColorScheme } from "react-native";
+import { FlatList, useColorScheme } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Food, searchFoods, getAllFoods, getServingSizes, logFood } from "../db/dao";
+import { getRandomToastMessage } from "../constants/unhinged-toast";
+import { Food, getAllFoods, getServingSizes, logFood, searchFoods } from "../db/dao";
 
 type SelectedFoodEntry = {
   food: Food;
@@ -126,7 +127,10 @@ export default function LogFoodScreen() {
         currentFat
       );
     }
-    router.replace('/');
+    router.replace({
+      pathname: '/',
+      params: { toastMessage: getRandomToastMessage() },
+    });
   };
 
   return (

@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
-import { View, Text, Pressable, TextInput, SafeAreaView } from '@/src/tw';
+import { Pressable, SafeAreaView, Text, TextInput, View } from '@/src/tw';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { getServingSizes, logFood, getLogById, updateLog } from '../db/dao';
+import { useEffect, useState } from 'react';
+import { getRandomToastMessage } from '../constants/unhinged-toast';
+import { getLogById, getServingSizes, logFood, updateLog } from '../db/dao';
 
 export default function VerificationScreen() {
   const router = useRouter();
@@ -74,6 +75,14 @@ export default function VerificationScreen() {
         parseFloat(currentFat)
       );
     }
+    if (!logId) {
+      router.replace({
+        pathname: '/',
+        params: { toastMessage: getRandomToastMessage() },
+      });
+      return;
+    }
+
     router.replace('/');
   };
 

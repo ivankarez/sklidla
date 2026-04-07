@@ -1,8 +1,8 @@
 import { View, Text, ScrollView, Pressable } from '@/src/tw';
 import { Alert, useColorScheme } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect, router } from 'expo-router';
-import { useState, useCallback, useEffect } from 'react';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { getLogsByDate, getSetting, deleteLog, LogEntry } from '../../db/dao';
 import { Animated } from '@/src/tw/animated';
 import { useSharedValue, withTiming, withDelay, Easing, useAnimatedStyle } from 'react-native-reanimated';
@@ -41,11 +41,20 @@ function AnimatedProgressBar({ percent, delay = 0, label, value }: { percent: nu
 }
 
 export default function Dashboard() {
+  const router = useRouter();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [goals, setGoals] = useState({ cal: 2500, pro: 150, car: 200, fat: 65 });
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isToastMounted, setIsToastMounted] = useState(false);
   const colorScheme = useColorScheme();
+  const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{ toastMessage?: string }>();
   const iconColor = colorScheme === 'dark' ? 'white' : 'black';
+  const toastOpacity = useSharedValue(0);
+  const toastTranslateY = useSharedValue(16);
+  const toastHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toastUnmountTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const getSqlDate = (date: Date) => {
     const year = date.getFullYear();
@@ -77,6 +86,58 @@ export default function Dashboard() {
       loadData(currentDate);
     }, [currentDate, loadData])
   );
+
+  const toastAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      opacity: toastOpacity.value,
+      transform: [{ translateY: toastTranslateY.value }],
+    };
+  });
+
+  const clearToastTimers = useCallback(() => {
+    if (toastHideTimerRef.current) {
+      clearTimeout(toastHideTimerRef.current);
+      toastHideTimerRef.current = null;
+    }
+    if (toastUnmountTimerRef.current) {
+      clearTimeout(toastUnmountTimerRef.current);
+      toastUnmountTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    const incomingToast = Array.isArray(params.toastMessage) ? params.toastMessage[0] : params.toastMessage;
+    if (!incomingToast) return;
+    clearToastTimers();
+    setIsToastMounted(true);
+    setToastMessage(incomingToast);
+
+    toastOpacity.value = 0;
+    toastTranslateY.value = 16;
+    toastOpacity.value = withTiming(1, { duration: 160 });
+    toastTranslateY.value = withTiming(0, {
+      duration: 220,
+      easing: Easing.out(Easing.cubic),
+    });
+
+    toastHideTimerRef.current = setTimeout(() => {
+      toastOpacity.value = withTiming(0, { duration: 220 });
+      toastTranslateY.value = withTiming(16, {
+        duration: 220,
+        easing: Easing.in(Easing.cubic),
+      });
+      toastUnmountTimerRef.current = setTimeout(() => {
+        setIsToastMounted(false);
+        setToastMessage(null);
+      }, 230);
+    }, 2200);
+
+    router.setParams({ toastMessage: undefined });
+  }, [params.toastMessage, router, clearToastTimers, toastOpacity, toastTranslateY]);
+
+  useEffect(() => {
+    return () => clearToastTimers();
+  }, [clearToastTimers]);
 
   const goToPreviousDay = () => {
     const newDate = new Date(currentDate);
@@ -209,7 +270,7 @@ export default function Dashboard() {
               <Text className="font-mono text-base font-black text-black text-center">AWAITING INPUT...</Text>
             </View>
           ) : (
-            <View className="border-4 border-black border-b-0">
+            <View key="ledger-list" className="border-4 border-black border-b-0 will-change-variable">
               {logs.map((log) => (
                 <Swipeable 
                   key={log.id}
@@ -233,6 +294,17 @@ export default function Dashboard() {
         </View>
 
       </ScrollView>
+
+      {isToastMounted && toastMessage ? (
+        <Animated.View
+          className="absolute left-4 right-4 bg-black border-4 border-white px-4 py-3"
+          style={[{ bottom: insets.bottom + 12 }, toastAnimatedStyle]}
+        >
+          <Text className="font-mono text-sm font-black text-white text-center uppercase">
+            {toastMessage}
+          </Text>
+        </Animated.View>
+      ) : null}
     </SafeAreaView>
   );
 }

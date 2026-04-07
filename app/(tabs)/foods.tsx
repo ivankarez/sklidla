@@ -60,7 +60,7 @@ export default function LibraryScreen() {
       <View className="flex-row items-center justify-between px-4 pb-4">
         <View className="w-15" />
         <Text className="font-mono text-xl font-black text-black">
-          {mode === "select" ? "SELECT FOOD" : "FOOD DATABASE"}
+          {mode === "select" ? "PICK A FOOD" : "LIBRARY"}
         </Text>
         <Pressable onPress={() => router.push("/manual-entry")} className="p-1.5">
           <Text className="font-mono text-sm font-bold text-black">[+] ADD</Text>
@@ -72,7 +72,7 @@ export default function LibraryScreen() {
           className="font-mono border-2 border-black bg-black text-white p-4 text-base font-bold"
           value={query}
           onChangeText={setQuery}
-          placeholder="..."
+          placeholder="SEARCH THE LIBRARY..."
           placeholderTextColor="#999"
           autoFocus
         />
@@ -84,10 +84,10 @@ export default function LibraryScreen() {
         contentContainerStyle={{ padding: 20 }}
         ListEmptyComponent={
           query ? (
-            <View className="items-center mt-10">
-              <Text className="font-mono text-sm text-black mb-4">
-                NO MATCHES FOUND.
-              </Text>
+              <View className="items-center mt-10">
+                <Text className="font-mono text-sm text-black mb-4">
+                  NO MATCHES. START A NEW ONE.
+                </Text>
               <Pressable
                 className="bg-black py-3 px-6"
                 onPress={() =>
@@ -104,7 +104,7 @@ export default function LibraryScreen() {
             </View>
           ) : (
             <Text className="font-mono text-sm text-black text-center mt-10">
-              DATABASE IS EMPTY.
+              YOUR LIBRARY IS EMPTY.
             </Text>
           )
         }

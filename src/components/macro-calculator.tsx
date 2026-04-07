@@ -32,7 +32,7 @@ interface MacroCalculatorProps {
 export function MacroCalculator({
   isDark,
   initialProfile,
-  submitLabel = "LET'S SUFFER",
+  submitLabel = 'DO THE MATH',
   loading = false,
   onCalculated,
 }: MacroCalculatorProps) {
@@ -57,7 +57,7 @@ export function MacroCalculator({
 
   const handleCalculate = async () => {
     if (!age || !weight || !height) {
-      Alert.alert('WEAKNESS DETECTED', 'PROVIDE AGE, WEIGHT, AND HEIGHT TO PROCEED.');
+      Alert.alert('NEED YOUR STATS', 'ADD AGE, WEIGHT, AND HEIGHT TO KEEP GOING.');
       return;
     }
     const a = parseInt(age, 10);
@@ -65,7 +65,7 @@ export function MacroCalculator({
     const h = parseFloat(height);
 
     if (isNaN(a) || isNaN(w) || isNaN(h)) {
-      Alert.alert('INVALID DATA', 'NUMBERS ONLY.');
+      Alert.alert('THOSE NUMBERS LOOK OFF', 'USE NUMBERS ONLY.');
       return;
     }
 
@@ -145,7 +145,7 @@ export function MacroCalculator({
             className={`flex-1 mx-1 border-2 border-black py-3 items-center ${gender === 'nonbinary' ? 'bg-black' : 'bg-white'}`}
             onPress={() => setGender('nonbinary')}
           >
-            <Text className={`font-mono text-[10px] font-bold ${gender === 'nonbinary' ? 'text-white' : 'text-black'}`}>DON&apos;T CARE</Text>
+            <Text className={`font-mono text-[10px] font-bold ${gender === 'nonbinary' ? 'text-white' : 'text-black'}`}>OTHER</Text>
           </Pressable>
           <Pressable
             className={`flex-1 ml-1 border-2 border-black py-3 items-center ${gender === 'female' ? 'bg-black' : 'bg-white'}`}
@@ -195,11 +195,11 @@ export function MacroCalculator({
       <View className="mb-6">
         <Text className={`font-mono text-lg font-black mb-3 ${isDark ? 'text-white' : 'text-black'}`}>ACTIVITY LEVEL</Text>
         {[
-          { id: 'sedentary', label: 'SEDENTARY (WEAK/NO EXERCISE)' },
+          { id: 'sedentary', label: 'SEDENTARY (LITTLE/NO EXERCISE)' },
           { id: 'light', label: 'LIGHT (1-3 DAYS/WEEK)' },
           { id: 'moderate', label: 'MODERATE (3-5 DAYS/WEEK)' },
           { id: 'active', label: 'ACTIVE (6-7 DAYS/WEEK)' },
-          { id: 'very_active', label: 'VERY ACTIVE (MANUAL LABOR)' },
+          { id: 'very_active', label: 'VERY ACTIVE (PHYSICAL JOB)' },
         ].map((act) => (
           <Pressable
             key={act.id}
@@ -215,11 +215,11 @@ export function MacroCalculator({
       </View>
 
       <View className="mb-6">
-        <Text className={`font-mono text-lg font-black mb-3 ${isDark ? 'text-white' : 'text-black'}`}>PRIMARY OBJECTIVE</Text>
+        <Text className={`font-mono text-lg font-black mb-3 ${isDark ? 'text-white' : 'text-black'}`}>MAIN GOAL</Text>
         {[
-          { id: 'cut', label: 'STARVE THE WEAKNESS (CUT)' },
+          { id: 'cut', label: 'CUT (LOSE)' },
           { id: 'maintain', label: 'MAINTAIN' },
-          { id: 'bulk', label: 'FEED THE BEAST (BULK)' },
+          { id: 'bulk', label: 'BULK (GAIN)' },
         ].map((item) => (
           <Pressable
             key={item.id}
@@ -234,12 +234,12 @@ export function MacroCalculator({
       </View>
 
       <View className="mb-8">
-        <Text className={`font-mono text-lg font-black mb-3 ${isDark ? 'text-white' : 'text-black'}`}>DIETARY DOCTRINE</Text>
+        <Text className={`font-mono text-lg font-black mb-3 ${isDark ? 'text-white' : 'text-black'}`}>EATING STYLE</Text>
         {[
-          { id: 'meathead', label: 'STANDARD (MEATHEAD)' },
-          { id: 'keto', label: 'KETO (FAT BURNING)' },
-          { id: 'sugar_hater', label: 'LOW-CARB (SUGAR HATER)' },
-          { id: 'carb_loader', label: 'CARB LOADER (PURE ENERGY)' },
+          { id: 'meathead', label: 'STANDARD' },
+          { id: 'keto', label: 'KETO' },
+          { id: 'sugar_hater', label: 'LOWER CARB' },
+          { id: 'carb_loader', label: 'HIGHER CARB' },
         ].map((diet) => (
           <Pressable
             key={diet.id}
@@ -263,13 +263,13 @@ export function MacroCalculator({
       </Pressable>
 
       <Text className={`font-mono text-xs text-center px-2 leading-5 uppercase mb-4 ${isDark ? 'text-white' : 'text-black'}`}>
-        WARNING: RELIES ON{' '}
+        BUILT ON{' '}
         <Text
           className="underline"
           onPress={() =>
             Alert.alert(
               'THE SCIENCE',
-              'The Mifflin-St Jeor equation (1990) is widely considered the most accurate predictive equation for basal metabolic rate (BMR) in healthy adults.\n\nIt forms the baseline for your calorie targets before activity multipliers and goals are applied. Your protein is calculated at 2.2g/kg (1g/lb) to prevent muscle wasting during a cut and maximize synthesis during a bulk.\n\n"The app talks like a drill sergeant, but it calculates like a registered dietitian."'
+              'The Mifflin-St Jeor equation (1990) is widely considered the most accurate predictive equation for basal metabolic rate (BMR) in healthy adults.\n\nIt forms the baseline for your calorie targets before activity multipliers and goals are applied. Your protein is calculated at 2.2g/kg (1g/lb) to help preserve muscle during a cut and support growth during a bulk.\n\nThe vibe is weird. The math is standard.'
             )
           }
         >

@@ -9,7 +9,7 @@ import { processFoodImage } from '../utils/ai';
 
 export default function CameraScreen() {
   const router = useRouter();
-  const processingMessages = ["I'M THINKING...", 'PROCESSING, BEEP-BOOP...', 'ON IT, FAM'];
+  const processingMessages = ['THINKING...', 'ONE SEC...', 'READING THAT NOW...'];
   const { mode, source, nameHint, brandHint } = useLocalSearchParams<{
     mode: 'meal' | 'label' | 'auto';
     source?: string;
@@ -90,7 +90,7 @@ export default function CameraScreen() {
   if (!permission.granted) {
     return (
       <SafeAreaView className="flex-1 bg-black justify-center">
-        <Text className="font-mono text-center mb-5 text-white">We need your permission to show the camera</Text>
+        <Text className="font-mono text-center mb-5 text-white">WE NEED CAMERA ACCESS TO SCAN FOOD AND LABELS.</Text>
         <Pressable className="bg-white p-4 mx-10 items-center" onPress={requestPermission}>
           <Text className="font-mono font-black text-black">GRANT ACCESS</Text>
         </Pressable>
@@ -127,7 +127,7 @@ export default function CameraScreen() {
       }
 
       if (mode !== 'label') {
-        const tempName = result.name || 'AI LOG (TEMP)';
+        const tempName = result.name || 'SCANNED MEAL';
         const foodId = await addFood({
           name: tempName,
           brand: 'AI VISION',
@@ -167,7 +167,7 @@ export default function CameraScreen() {
 
     } catch (e) {
       console.error(e);
-      Alert.alert('CAPTURE ERROR', 'FAILED TO ACQUIRE TARGET.');
+      Alert.alert('CAPTURE ERROR', "COULDN'T READ THAT. TRY AGAIN.");
       if (cameraRef.current) {
         await cameraRef.current.resumePreview();
       }

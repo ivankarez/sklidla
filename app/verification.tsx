@@ -77,13 +77,13 @@ export default function VerificationScreen() {
     }
     if (!logId) {
       router.replace({
-        pathname: '/',
+        pathname: '/(tabs)',
         params: { toastMessage: getRandomToastMessage() },
       });
       return;
     }
 
-    router.replace('/');
+    router.replace('/(tabs)');
   };
 
   return (
@@ -92,7 +92,7 @@ export default function VerificationScreen() {
         <Pressable onPress={() => router.back()} className="p-1.5">
           <Text className="font-mono text-base font-bold text-black">[ BACK ]</Text>
         </Pressable>
-        <Text className="font-mono text-xl font-black text-black">{logId ? 'EDIT LOG' : 'VERIFY LOG'}</Text>
+        <Text className="font-mono text-xl font-black text-black">{logId ? 'EDIT ENTRY' : 'CHECK ENTRY'}</Text>
         <View style={{ width: 70 }} />
       </View>
 
@@ -157,7 +157,7 @@ export default function VerificationScreen() {
       </View>
 
       <Pressable className="bg-black py-5 mx-5 mb-5 items-center justify-center" onPress={handleSave}>
-        <Text className="font-mono text-2xl font-black text-white tracking-widest">{logId ? 'UPDATE LOG' : 'SAVE TO LOG'}</Text>
+        <Text className="font-mono text-2xl font-black text-white tracking-widest">{logId ? 'UPDATE ENTRY' : 'SAVE ENTRY'}</Text>
       </Pressable>
     </SafeAreaView>
   );

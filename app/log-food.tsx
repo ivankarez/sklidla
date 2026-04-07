@@ -128,7 +128,7 @@ export default function LogFoodScreen() {
       );
     }
     router.replace({
-      pathname: '/',
+      pathname: '/(tabs)',
       params: { toastMessage: getRandomToastMessage() },
     });
   };
@@ -140,7 +140,7 @@ export default function LogFoodScreen() {
           <Text className="font-mono text-sm font-bold" style={{ color: theme.textPrimary }}>[X] CANCEL</Text>
         </Pressable>
         <Text className="font-mono text-xl font-black" style={{ color: theme.textPrimary }}>
-          LOG FUEL
+          LOG MEAL
         </Text>
         <Pressable 
           onPress={handleSaveAll} 
@@ -154,7 +154,7 @@ export default function LogFoodScreen() {
       <View style={{ maxHeight: 200, backgroundColor: theme.panelBg, borderColor: theme.border }} className="border-b-4">
         {selectedFoods.length === 0 ? (
           <View className="p-4 items-center justify-center min-h-[100px]">
-            <Text className="font-mono text-sm font-bold" style={{ color: theme.textPrimary }}>NO FUEL SELECTED.</Text>
+            <Text className="font-mono text-sm font-bold" style={{ color: theme.textPrimary }}>NOTHING PICKED YET.</Text>
           </View>
         ) : (
           <FlatList
@@ -271,11 +271,11 @@ export default function LogFoodScreen() {
               keyExtractor={(item) => item.id.toString()}
               contentContainerStyle={{ paddingBottom: 20 }}
               keyboardShouldPersistTaps="handled"
-              ListEmptyComponent={
-                <Text className="font-mono text-sm text-center mt-10" style={{ color: theme.textPrimary }}>
-                  {query ? "NO MATCHES FOUND." : "DATABASE IS EMPTY."}
-                </Text>
-              }
+                ListEmptyComponent={
+                  <Text className="font-mono text-sm text-center mt-10" style={{ color: theme.textPrimary }}>
+                  {query ? 'NO MATCHES HERE.' : 'NOTHING IN THE LIBRARY YET.'}
+                  </Text>
+                }
               renderItem={({ item }) => (
                 <Pressable
                   className="flex-row justify-between items-center py-4 px-5 border-b-2"

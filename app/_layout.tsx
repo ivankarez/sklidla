@@ -38,7 +38,7 @@ export default function RootLayout() {
   if (error) {
     return (
       <View className="flex-1 bg-white justify-center items-center">
-        <Text className="text-black font-mono">DB INIT FAILED: {error.message}</Text>
+        <Text className="text-black font-mono">STARTUP FAILED: {error.message}</Text>
       </View>
     );
   }
@@ -46,7 +46,7 @@ export default function RootLayout() {
   if (!dbInitialized) {
     return (
       <View className="flex-1 bg-white justify-center items-center">
-        <Text className="text-black font-mono text-2xl font-black">INITIALIZING...</Text>
+        <Text className="text-black font-mono text-2xl font-black">STARTING UP...</Text>
       </View>
     );
   }

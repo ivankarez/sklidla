@@ -87,7 +87,7 @@ export default function SettingsScreen() {
         const storedTheme = await getSetting('theme_preference');
         if (storedTheme) setThemePreference(storedTheme);
       } catch {
-        Alert.alert('ERROR', 'FAILED TO LOAD PROTOCOLS');
+        Alert.alert('ERROR', 'FAILED TO LOAD SETTINGS.');
       } finally {
         setIsLoading(false);
       }
@@ -130,7 +130,7 @@ export default function SettingsScreen() {
   if (isLoading) {
     return (
       <View className="flex-1 bg-white justify-center items-center">
-        <Text className="font-mono text-xl font-black text-black">ACCESSING SETTINGS...</Text>
+        <Text className="font-mono text-xl font-black text-black">OPENING SETTINGS...</Text>
       </View>
     );
   }
@@ -144,9 +144,9 @@ export default function SettingsScreen() {
         
         <View className="mb-10">
           <View className="flex-row justify-between items-end mb-1.5">
-            <Text className="font-mono text-xl font-black text-black">MACRO DIRECTIVES</Text>
+            <Text className="font-mono text-xl font-black text-black">MACRO GOALS</Text>
             <Pressable onPress={() => setIsCalculatorOpen(true)} className="bg-black px-3 py-1.5 border-2 border-black">
-              <Text className="font-mono text-xs font-black text-white">Calculate</Text>
+              <Text className="font-mono text-xs font-black text-white">RUN THE MATH</Text>
             </Pressable>
           </View>
           <View className="h-1 bg-black mb-5" />
@@ -200,7 +200,7 @@ export default function SettingsScreen() {
         </View>
 
         <View className="mb-10">
-          <Text className="font-mono text-xl font-black text-black mb-1.5">AI STUFF (BYOK)</Text>
+          <Text className="font-mono text-xl font-black text-black mb-1.5">OPTIONAL AI (BYOK)</Text>
           <View className="h-1 bg-black mb-5" />
           
           <Pressable 
@@ -210,7 +210,7 @@ export default function SettingsScreen() {
             <View className={`w-8 h-8 border-2 border-black mr-4 items-center justify-center ${aiEnabled ? 'bg-black' : 'bg-white'}`}>
               {aiEnabled && <Ionicons name="checkmark" size={24} color={colorScheme === 'dark' ? 'black' : 'white'} />}
             </View>
-            <Text className="font-mono text-base font-bold text-black">ENABLE AI FUNCTIONS</Text>
+            <Text className="font-mono text-base font-bold text-black">TURN ON AI FEATURES</Text>
           </Pressable>
 
           {aiEnabled && (
@@ -250,17 +250,17 @@ export default function SettingsScreen() {
                   onChangeText={setApiKey}
                   secureTextEntry
                   autoCapitalize="none"
-                  placeholder={`Paste your ${aiProvider} key here...`}
+                  placeholder={`Paste your ${aiProvider} key here`}
                   placeholderTextColor="#999"
                 />
               </View>
-              <Text className="font-mono text-xs text-black ml-4 -mt-2.5 leading-4.5">KEYS ARE ENCRYPTED AND STORED LOCALLY. ZERO SERVER CONNECTION.</Text>
+              <Text className="font-mono text-xs text-black ml-4 -mt-2.5 leading-4.5">KEYS STAY ENCRYPTED ON THIS DEVICE. NO SERVER MIDDLEMAN.</Text>
             </View>
           )}
         </View>
 
         <View className="mb-10">
-          <Text className="font-mono text-xl font-black text-black mb-1.5">VISUAL PROTOCOL</Text>
+          <Text className="font-mono text-xl font-black text-black mb-1.5">APPEARANCE</Text>
           <View className="h-1 bg-black mb-5" />
           
           <View className="flex-row">
@@ -290,20 +290,20 @@ export default function SettingsScreen() {
         </View>
 
       <View className="mb-10">
-        <Text className="font-mono text-xl font-black text-black mb-1.5">DANGER ZONE</Text>
+        <Text className="font-mono text-xl font-black text-black mb-1.5">DELETE EVERYTHING</Text>
         <View className="h-1 bg-black mb-5" />
         <Pressable
           className="bg-white border-2 border-black p-4 items-center"
           onPress={() => {
             Alert.alert(
               'DELETE ALL DATA',
-              'This will permanently delete all local app data (database and keys). Are you sure?',
+              'This permanently deletes all local data on this device, including your database and saved keys. Are you sure?',
               [
                 { text: 'Cancel', style: 'cancel' },
-                { text: 'Yes, I am sure', onPress: () => {
+                { text: 'Yes, delete it', onPress: () => {
                     Alert.alert(
-                      'FINAL CONFIRMATION',
-                      'FINAL: Permanently delete all local data? This cannot be undone.',
+                      'LAST CHECK',
+                      'Delete everything on this device? This cannot be undone.',
                       [
                         { text: 'Cancel', style: 'cancel' },
                         { text: 'DELETE', style: 'destructive', onPress: async () => {
@@ -312,16 +312,16 @@ export default function SettingsScreen() {
                               await clearAllData();
                               await SecureStore.deleteItemAsync('apiKey');
                               await SecureStore.deleteItemAsync('openRouterKey');
-                              await SecureStore.deleteItemAsync('openAiKey');
-                              setIsLoading(false);
-                              router.replace('/onboarding');
-                              Alert.alert('DATA DELETED', 'All local data has been removed.');
-                            } catch (e) {
-                              console.error('Failed to clear data', e);
-                              setIsLoading(false);
-                              Alert.alert('ERROR', 'Failed to delete all data.');
-                            }
-                          } },
+                               await SecureStore.deleteItemAsync('openAiKey');
+                               setIsLoading(false);
+                               router.replace('/onboarding');
+                               Alert.alert('DONE', 'All local data has been removed.');
+                             } catch (e) {
+                               console.error('Failed to clear data', e);
+                               setIsLoading(false);
+                               Alert.alert('ERROR', 'FAILED TO DELETE YOUR LOCAL DATA.');
+                             }
+                           } },
                       ],
                       { cancelable: false }
                     );

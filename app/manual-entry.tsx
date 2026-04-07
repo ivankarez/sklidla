@@ -181,7 +181,7 @@ export default function ManualEntryScreen() {
 
   const handleSave = async () => {
     if (!name || !calories || !protein || !carbs || !fats) {
-      Alert.alert('MISSING DATA', 'FILL ALL BASE MACROS.');
+      Alert.alert('NEED THE NUMBERS', 'ADD CALORIES, PROTEIN, CARBS, AND FATS.');
       return;
     }
 
@@ -212,7 +212,7 @@ export default function ManualEntryScreen() {
         { text: 'OK', onPress: () => router.back() }
       ]);
     } catch {
-      Alert.alert('ERROR', 'FAILED TO SAVE FOOD.');
+      Alert.alert('ERROR', 'COULD NOT SAVE THAT FOOD.');
     }
   };
 
@@ -231,7 +231,7 @@ export default function ManualEntryScreen() {
       <ScrollView contentContainerClassName="p-5 pb-5">
         <View className="mb-7.5">
           <View className="flex-row items-center justify-between mb-1.5">
-            <Text className="font-mono text-lg font-black text-black">BASE STUFF</Text>
+            <Text className="font-mono text-lg font-black text-black">THE BASICS</Text>
             {isAiEnabled && !foodIdParam && (
               <Pressable
                 onPress={handleAiScan}
@@ -384,7 +384,7 @@ export default function ManualEntryScreen() {
       </ScrollView>
 
       <Pressable className="bg-black py-5 mx-5 mb-5 items-center justify-center" onPress={handleSave} disabled={isNameAiLoading}>
-        <Text className="font-mono text-xl font-black text-white tracking-widest">{foodIdParam ? 'UPDATE FOOD' : 'SAVE TO DB'}</Text>
+        <Text className="font-mono text-xl font-black text-white tracking-widest">{foodIdParam ? 'UPDATE FOOD' : 'SAVE TO LIBRARY'}</Text>
       </Pressable>
 
       {isNameAiLoading && (
@@ -397,7 +397,7 @@ export default function ManualEntryScreen() {
             style={{ backgroundColor: '#000000', borderColor: '#FFFFFF', borderWidth: 4 }}
           >
             <Ionicons name="sparkles" size={22} color="#FFFFFF" />
-            <Text className="font-mono text-base font-black mt-2" style={{ color: '#FFFFFF' }}>thinking...</Text>
+            <Text className="font-mono text-base font-black mt-2" style={{ color: '#FFFFFF' }}>THINKING...</Text>
           </View>
         </View>
       )}

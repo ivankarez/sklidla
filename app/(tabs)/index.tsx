@@ -152,7 +152,7 @@ export default function Dashboard() {
   };
 
   const handleDelete = async (id: number) => {
-    Alert.alert('DELETE LOG', 'ARE YOU SURE?', [
+    Alert.alert('DELETE ENTRY', 'REMOVE THIS LOG?', [
       { text: 'CANCEL', style: 'cancel' },
       { text: 'DELETE', style: 'destructive', onPress: async () => {
         await deleteLog(id);
@@ -267,7 +267,7 @@ export default function Dashboard() {
           
           {logs.length === 0 ? (
             <View className="border-4 border-black border-dashed p-6 items-center">
-              <Text className="font-mono text-base font-black text-black text-center">AWAITING INPUT...</Text>
+              <Text className="font-mono text-base font-black text-black text-center">NOTHING HERE YET.</Text>
             </View>
           ) : (
             <View key="ledger-list" className="border-4 border-black border-b-0 will-change-variable">

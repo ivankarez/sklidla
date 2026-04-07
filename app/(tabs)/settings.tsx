@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Modal, Appearance, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getSetting, setSetting, clearAllData } from '../../db/dao';
+import { useRouter } from 'expo-router';
 import { MacroCalculator } from '@/src/components/macro-calculator';
 
 export default function SettingsScreen() {
@@ -14,6 +15,7 @@ export default function SettingsScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const iconColor = colorScheme === 'dark' ? 'white' : 'black';
+  const router = useRouter();
   
   const [goalCalories, setGoalCalories] = useState('');
   const [goalProtein, setGoalProtein] = useState('');
@@ -312,6 +314,7 @@ export default function SettingsScreen() {
                               await SecureStore.deleteItemAsync('openRouterKey');
                               await SecureStore.deleteItemAsync('openAiKey');
                               setIsLoading(false);
+                              router.replace('/onboarding');
                               Alert.alert('DATA DELETED', 'All local data has been removed.');
                             } catch (e) {
                               console.error('Failed to clear data', e);

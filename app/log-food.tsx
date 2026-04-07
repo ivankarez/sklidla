@@ -1,10 +1,11 @@
 import { Pressable, Text, TextInput, View } from "@/src/tw";
-import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import { FlatList, useColorScheme } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getRandomToastMessage } from "../constants/unhinged-toast";
 import { Food, getAllFoods, getServingSizes, logFood, searchFoods } from "../db/dao";
+import { consumePendingCreatedLogFood } from "../src/log-food-session";
 
 type SelectedFoodEntry = {
   food: Food;
@@ -67,21 +68,13 @@ export default function LogFoodScreen() {
   const [amount, setAmount] = useState("100");
   const [selectedUnit, setSelectedUnit] = useState<{ name: string, weight: number, id: number | null }>({ name: 'grams', weight: 1, id: null });
 
-  useEffect(() => {
-    async function performSearch() {
-      if (query.trim() === "") {
-        const items = await getAllFoods();
-        setDbFoods(items);
-        return;
-      }
-      const items = await searchFoods(query);
-      setDbFoods(items);
-    }
-    const timer = setTimeout(() => performSearch(), 300);
-    return () => clearTimeout(timer);
+  const loadFoods = useCallback(async (searchTerm: string = query) => {
+    const trimmedQuery = searchTerm.trim();
+    const items = trimmedQuery === "" ? await getAllFoods() : await searchFoods(trimmedQuery);
+    setDbFoods(items);
   }, [query]);
 
-  const handleSelectFoodForConfig = async (food: Food) => {
+  const handleSelectFoodForConfig = useCallback(async (food: Food) => {
     const sizes = await getServingSizes(food.id);
     setServingSizes(sizes);
     setConfiguringFood(food);
@@ -92,7 +85,44 @@ export default function LogFoodScreen() {
       setAmount("100");
       setSelectedUnit({ name: 'grams', weight: 1, id: null });
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void loadFoods(query);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [loadFoods, query]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
+
+      async function syncLogFoodScreen() {
+        const pendingCreatedFood = consumePendingCreatedLogFood();
+        const nextQuery = pendingCreatedFood?.searchQuery ?? query;
+
+        if (pendingCreatedFood?.searchQuery && pendingCreatedFood.searchQuery !== query) {
+          setQuery(pendingCreatedFood.searchQuery);
+        }
+
+        const trimmedQuery = nextQuery.trim();
+        const items = trimmedQuery === "" ? await getAllFoods() : await searchFoods(trimmedQuery);
+        if (!isActive) return;
+        setDbFoods(items);
+
+        if (pendingCreatedFood) {
+          await handleSelectFoodForConfig(pendingCreatedFood.food);
+        }
+      }
+
+      void syncLogFoodScreen();
+
+      return () => {
+        isActive = false;
+      };
+    }, [handleSelectFoodForConfig, query])
+  );
 
   const handleConfirmAddFood = () => {
     if (!configuringFood) return;
@@ -105,6 +135,19 @@ export default function LogFoodScreen() {
 
   const handleRemoveSelectedFood = (indexToRemove: number) => {
     setSelectedFoods((prev) => prev.filter((_, index) => index !== indexToRemove));
+  };
+
+  const handleCreateFood = () => {
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) return;
+
+    router.push({
+      pathname: '/manual-entry',
+      params: {
+        returnTo: 'log',
+        name: trimmedQuery,
+      },
+    });
   };
 
   const handleSaveAll = async () => {
@@ -272,9 +315,26 @@ export default function LogFoodScreen() {
               contentContainerStyle={{ paddingBottom: 20 }}
               keyboardShouldPersistTaps="handled"
                 ListEmptyComponent={
-                  <Text className="font-mono text-sm text-center mt-10" style={{ color: theme.textPrimary }}>
-                  {query ? 'NO MATCHES HERE.' : 'NOTHING IN THE LIBRARY YET.'}
-                  </Text>
+                  query.trim() ? (
+                    <View className="items-center mt-10 px-5">
+                      <Text className="font-mono text-sm text-center mb-4" style={{ color: theme.textPrimary }}>
+                        NO MATCHES. START A NEW ONE.
+                      </Text>
+                      <Pressable
+                        className="py-3 px-6"
+                        style={{ backgroundColor: theme.primaryButtonBg }}
+                        onPress={handleCreateFood}
+                      >
+                        <Text className="font-mono text-sm font-bold" style={{ color: theme.primaryButtonText }}>
+                          ADD &quot;{query.trim()}&quot;
+                        </Text>
+                      </Pressable>
+                    </View>
+                  ) : (
+                    <Text className="font-mono text-sm text-center mt-10" style={{ color: theme.textPrimary }}>
+                      NOTHING IN THE LIBRARY YET.
+                    </Text>
+                  )
                 }
               renderItem={({ item }) => (
                 <Pressable

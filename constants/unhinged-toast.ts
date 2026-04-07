@@ -24,6 +24,19 @@ const LIBRARY_TOAST_MESSAGES = [
   'ONE MORE FOR THE LIBRARY.',
 ] as const;
 
+const LEDGER_EMPTY_MESSAGES = [
+  'LEDGER EMPTY. PEACEFUL. SUSPICIOUS.',
+  'NOTHING LOGGED. THE DAY IS STILL CLEAN.',
+  'NO ENTRIES YET. GO MAKE THE NUMBERS HAPPEN.',
+  'THE LEDGER IS QUIET. FOR NOW.',
+  'BLANK PAGE ENERGY.',
+  'ZERO LOGS. ZERO CHAOS. TEMPORARY.',
+  'NO FOOD CRIMES DOCUMENTED YET.',
+  'THE RECEIPTS ARE MISSING. EAT SOMETHING.',
+  'DAY STARTER PACK: ABSOLUTELY NOTHING.',
+  'THE VOID STARES BACK. LOG WHAT YOU ATE.',
+] as const;
+
 export const getRandomToastMessage = () => {
   const randomIndex = Math.floor(Math.random() * UNHINGED_TOAST_MESSAGES.length);
   return UNHINGED_TOAST_MESSAGES[randomIndex];
@@ -32,4 +45,9 @@ export const getRandomToastMessage = () => {
 export const getRandomLibraryToastMessage = () => {
   const randomIndex = Math.floor(Math.random() * LIBRARY_TOAST_MESSAGES.length);
   return LIBRARY_TOAST_MESSAGES[randomIndex];
+};
+
+export const getRandomLedgerEmptyMessage = () => {
+  const randomIndex = Math.floor(Math.random() * LEDGER_EMPTY_MESSAGES.length);
+  return LEDGER_EMPTY_MESSAGES[randomIndex];
 };

@@ -8,6 +8,7 @@ import { Animated } from '@/src/tw/animated';
 import { useSharedValue, withTiming, withDelay, Easing, useAnimatedStyle } from 'react-native-reanimated';
 import { MaterialIcons } from '@expo/vector-icons';
 import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
+import { getRandomLedgerEmptyMessage } from '@/constants/unhinged-toast';
 
 function AnimatedProgressBar({ percent, delay = 0, label, value }: { percent: number, delay?: number, label: string, value: string }) {
   const width = useSharedValue(0);
@@ -47,6 +48,7 @@ export default function Dashboard() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isToastMounted, setIsToastMounted] = useState(false);
+  const [emptyLedgerMessage, setEmptyLedgerMessage] = useState(() => getRandomLedgerEmptyMessage());
   const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ toastMessage?: string }>();
@@ -184,6 +186,12 @@ export default function Dashboard() {
 
   const displayDate = currentDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase();
 
+  useEffect(() => {
+    if (logs.length === 0) {
+      setEmptyLedgerMessage(getRandomLedgerEmptyMessage());
+    }
+  }, [currentDate, logs.length]);
+
   const renderRightActions = (prog: any, drag: any, log: LogEntry) => {
     return (
       <View className="flex-row items-center h-full">
@@ -267,7 +275,7 @@ export default function Dashboard() {
           
           {logs.length === 0 ? (
             <View className="border-4 border-black border-dashed p-6 items-center">
-              <Text className="font-mono text-base font-black text-black text-center">NOTHING HERE YET.</Text>
+              <Text className="font-mono text-base font-black text-black text-center">{emptyLedgerMessage}</Text>
             </View>
           ) : (
             <View key="ledger-list" className="border-4 border-black border-b-0 will-change-variable">

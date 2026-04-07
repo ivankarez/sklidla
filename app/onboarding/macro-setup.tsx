@@ -10,30 +10,36 @@ export default function MacroSetupScreen() {
   const router = useRouter();
   const isDark = useColorScheme() === 'dark';
   const [saving, setSaving] = useState(false);
+  const screenBg = isDark ? '#000000' : '#FFFFFF';
+  const textColor = isDark ? '#FFFFFF' : '#000000';
+  const borderColor = isDark ? '#FFFFFF' : '#000000';
+  const dividerBg = isDark ? '#FFFFFF' : '#000000';
+  const buttonBg = isDark ? '#FFFFFF' : '#000000';
+  const buttonText = isDark ? '#000000' : '#FFFFFF';
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: isDark ? '#000000' : '#FFFFFF' }} edges={['top', 'bottom']}>
-      <View className={`py-4 px-5 border-b-4 ${isDark ? 'border-white' : 'border-black'}`}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: screenBg }} edges={['top', 'bottom']}>
+      <View className="py-4 px-5 border-b-4" style={{ borderColor }}>
         <View className="flex-row items-center justify-between mb-2">
-          <Text className={`font-mono text-2xl font-black tracking-widest ${isDark ? 'text-white' : 'text-black'}`}>MATH SCREEN</Text>
+          <Text className="font-mono text-2xl font-black tracking-widest" style={{ color: textColor }}>MATH SCREEN</Text>
           <Pressable
             onPress={() => router.back()}
             className="px-3 py-1.5 border-2"
             style={{
-              backgroundColor: isDark ? '#FFFFFF' : '#000000',
-              borderColor: isDark ? '#FFFFFF' : '#000000',
+              backgroundColor: buttonBg,
+              borderColor,
             }}
           >
-            <Text className={`font-mono text-xs font-black ${isDark ? 'text-black' : 'text-white'}`}>BACK</Text>
+            <Text className="font-mono text-xs font-black" style={{ color: buttonText }}>BACK</Text>
           </Pressable>
         </View>
-        <Text className={`font-mono text-xs font-bold leading-4.5 ${isDark ? 'text-white' : 'text-black'}`}>
+        <Text className="font-mono text-xs font-bold leading-4.5" style={{ color: textColor }}>
           TELL US ABOUT YOUR BODY AND GOALS. WE&apos;LL DO THE MATH YOU DON&apos;T WANT TO.
         </Text>
         <View className="flex-row items-center mt-3 gap-2">
-          <View className={`w-8 h-2 ${isDark ? 'bg-white' : 'bg-black'} opacity-25`} />
-          <View className={`w-8 h-2 ${isDark ? 'bg-white' : 'bg-black'}`} />
-          <View className={`w-8 h-2 ${isDark ? 'bg-white' : 'bg-black'} opacity-25`} />
+          <View className="w-8 h-2 opacity-25" style={{ backgroundColor: dividerBg }} />
+          <View className="w-8 h-2" style={{ backgroundColor: dividerBg }} />
+          <View className="w-8 h-2 opacity-25" style={{ backgroundColor: dividerBg }} />
         </View>
       </View>
 

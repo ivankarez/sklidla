@@ -45,6 +45,19 @@ export function MacroCalculator({
   const [dietaryPreference, setDietaryPreference] = useState(initialProfile.dietaryPreference);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const textColor = isDark ? '#FFFFFF' : '#000000';
+  const borderColor = isDark ? '#FFFFFF' : '#000000';
+  const panelBg = isDark ? '#000000' : '#FFFFFF';
+  const selectedBg = isDark ? '#FFFFFF' : '#000000';
+  const selectedText = isDark ? '#000000' : '#FFFFFF';
+  const unselectedBg = isDark ? '#000000' : '#FFFFFF';
+  const unselectedText = isDark ? '#FFFFFF' : '#000000';
+  const inputBg = isDark ? '#000000' : '#FFFFFF';
+  const inputText = isDark ? '#FFFFFF' : '#000000';
+  const inputPlaceholder = isDark ? '#777777' : '#999999';
+  const checkmarkColor = isDark ? '#000000' : '#FFFFFF';
+  const shadowColor = isDark ? '#FFFFFF' : '#000000';
+
   useEffect(() => {
     setGender(initialProfile.gender);
     setAge(initialProfile.age);
@@ -131,69 +144,102 @@ export function MacroCalculator({
 
   return (
     <ScrollView contentContainerClassName="p-5 pb-10" keyboardShouldPersistTaps="handled">
-      <View className="mb-6 border-4 border-black p-4 bg-white shadow-[4px_4px_0px_0px_var(--color-shadow)]">
-        <Text className="font-mono text-lg font-black text-black mb-4">BIOMETRICS</Text>
+      <View
+        className="mb-6 border-4 p-4 shadow-[4px_4px_0px_0px_var(--color-shadow)]"
+        style={{ borderColor, backgroundColor: panelBg, shadowColor }}
+      >
+        <Text className="font-mono text-lg font-black mb-4" style={{ color: textColor }}>BIOMETRICS</Text>
 
         <View className="flex-row justify-between mb-4">
           <Pressable
-            className={`flex-1 mr-1 border-2 border-black py-3 items-center ${gender === 'male' ? 'bg-black' : 'bg-white'}`}
+            className="flex-1 mr-1 border-2 py-3 items-center"
+            style={{
+              borderColor,
+              backgroundColor: gender === 'male' ? selectedBg : unselectedBg,
+            }}
             onPress={() => setGender('male')}
           >
-            <Text className={`font-mono text-[10px] font-bold ${gender === 'male' ? 'text-white' : 'text-black'}`}>MALE</Text>
+            <Text
+              className="font-mono text-[10px] font-bold"
+              style={{ color: gender === 'male' ? selectedText : unselectedText }}
+            >
+              MALE
+            </Text>
           </Pressable>
           <Pressable
-            className={`flex-1 mx-1 border-2 border-black py-3 items-center ${gender === 'nonbinary' ? 'bg-black' : 'bg-white'}`}
+            className="flex-1 mx-1 border-2 py-3 items-center"
+            style={{
+              borderColor,
+              backgroundColor: gender === 'nonbinary' ? selectedBg : unselectedBg,
+            }}
             onPress={() => setGender('nonbinary')}
           >
-            <Text className={`font-mono text-[10px] font-bold ${gender === 'nonbinary' ? 'text-white' : 'text-black'}`}>OTHER</Text>
+            <Text
+              className="font-mono text-[10px] font-bold"
+              style={{ color: gender === 'nonbinary' ? selectedText : unselectedText }}
+            >
+              OTHER
+            </Text>
           </Pressable>
           <Pressable
-            className={`flex-1 ml-1 border-2 border-black py-3 items-center ${gender === 'female' ? 'bg-black' : 'bg-white'}`}
+            className="flex-1 ml-1 border-2 py-3 items-center"
+            style={{
+              borderColor,
+              backgroundColor: gender === 'female' ? selectedBg : unselectedBg,
+            }}
             onPress={() => setGender('female')}
           >
-            <Text className={`font-mono text-[10px] font-bold ${gender === 'female' ? 'text-white' : 'text-black'}`}>FEMALE</Text>
+            <Text
+              className="font-mono text-[10px] font-bold"
+              style={{ color: gender === 'female' ? selectedText : unselectedText }}
+            >
+              FEMALE
+            </Text>
           </Pressable>
         </View>
 
         <View className="flex-row justify-between">
           <View className="flex-1 mr-2">
-            <Text className="font-mono text-xs font-bold text-black mb-1">AGE</Text>
+            <Text className="font-mono text-xs font-bold mb-1" style={{ color: textColor }}>AGE</Text>
             <TextInput
-              className="font-mono border-2 border-black bg-white p-3 text-black text-center text-lg"
+              className="font-mono border-2 p-3 text-center text-lg"
+              style={{ borderColor, backgroundColor: inputBg, color: inputText }}
               value={age}
               onChangeText={setAge}
               keyboardType="numeric"
               placeholder="YRS"
-              placeholderTextColor="#999"
+              placeholderTextColor={inputPlaceholder}
             />
           </View>
           <View className="flex-1 mx-1">
-            <Text className="font-mono text-xs font-bold text-black mb-1">WEIGHT</Text>
+            <Text className="font-mono text-xs font-bold mb-1" style={{ color: textColor }}>WEIGHT</Text>
             <TextInput
-              className="font-mono border-2 border-black bg-white p-3 text-black text-center text-lg"
+              className="font-mono border-2 p-3 text-center text-lg"
+              style={{ borderColor, backgroundColor: inputBg, color: inputText }}
               value={weight}
               onChangeText={setWeight}
               keyboardType="numeric"
               placeholder="KG"
-              placeholderTextColor="#999"
+              placeholderTextColor={inputPlaceholder}
             />
           </View>
           <View className="flex-1 ml-2">
-            <Text className="font-mono text-xs font-bold text-black mb-1">HEIGHT</Text>
+            <Text className="font-mono text-xs font-bold mb-1" style={{ color: textColor }}>HEIGHT</Text>
             <TextInput
-              className="font-mono border-2 border-black bg-white p-3 text-black text-center text-lg"
+              className="font-mono border-2 p-3 text-center text-lg"
+              style={{ borderColor, backgroundColor: inputBg, color: inputText }}
               value={height}
               onChangeText={setHeight}
               keyboardType="numeric"
               placeholder="CM"
-              placeholderTextColor="#999"
+              placeholderTextColor={inputPlaceholder}
             />
           </View>
         </View>
       </View>
 
       <View className="mb-6">
-        <Text className={`font-mono text-lg font-black mb-3 ${isDark ? 'text-white' : 'text-black'}`}>ACTIVITY LEVEL</Text>
+        <Text className="font-mono text-lg font-black mb-3" style={{ color: textColor }}>ACTIVITY LEVEL</Text>
         {[
           { id: 'sedentary', label: 'SEDENTARY (LITTLE/NO EXERCISE)' },
           { id: 'light', label: 'LIGHT (1-3 DAYS/WEEK)' },
@@ -203,19 +249,26 @@ export function MacroCalculator({
         ].map((act) => (
           <Pressable
             key={act.id}
-            className={`border-2 border-black p-3 mb-2 flex-row justify-between items-center ${activityLevel === act.id ? 'bg-black' : 'bg-white'}`}
+            className="border-2 p-3 mb-2 flex-row justify-between items-center"
+            style={{
+              borderColor,
+              backgroundColor: activityLevel === act.id ? selectedBg : unselectedBg,
+            }}
             onPress={() => setActivityLevel(act.id)}
           >
-            <Text className={`font-mono font-bold text-sm ${activityLevel === act.id ? 'text-white' : 'text-black'}`}>
+            <Text
+              className="font-mono font-bold text-sm"
+              style={{ color: activityLevel === act.id ? selectedText : unselectedText }}
+            >
               {act.label}
             </Text>
-            {activityLevel === act.id && <Ionicons name="checkmark-sharp" size={20} color="white" />}
+            {activityLevel === act.id && <Ionicons name="checkmark-sharp" size={20} color={checkmarkColor} />}
           </Pressable>
         ))}
       </View>
 
       <View className="mb-6">
-        <Text className={`font-mono text-lg font-black mb-3 ${isDark ? 'text-white' : 'text-black'}`}>MAIN GOAL</Text>
+        <Text className="font-mono text-lg font-black mb-3" style={{ color: textColor }}>MAIN GOAL</Text>
         {[
           { id: 'cut', label: 'CUT (LOSE)' },
           { id: 'maintain', label: 'MAINTAIN' },
@@ -223,10 +276,17 @@ export function MacroCalculator({
         ].map((item) => (
           <Pressable
             key={item.id}
-            className={`border-4 border-black p-4 mb-3 items-center ${goal === item.id ? 'bg-black' : 'bg-white'}`}
+            className="border-4 p-4 mb-3 items-center"
+            style={{
+              borderColor,
+              backgroundColor: goal === item.id ? selectedBg : unselectedBg,
+            }}
             onPress={() => setGoal(item.id)}
           >
-            <Text className={`font-mono text-lg font-black tracking-widest ${goal === item.id ? 'text-white' : 'text-black'}`}>
+            <Text
+              className="font-mono text-lg font-black tracking-widest"
+              style={{ color: goal === item.id ? selectedText : unselectedText }}
+            >
               {item.label}
             </Text>
           </Pressable>
@@ -234,7 +294,7 @@ export function MacroCalculator({
       </View>
 
       <View className="mb-8">
-        <Text className={`font-mono text-lg font-black mb-3 ${isDark ? 'text-white' : 'text-black'}`}>EATING STYLE</Text>
+        <Text className="font-mono text-lg font-black mb-3" style={{ color: textColor }}>EATING STYLE</Text>
         {[
           { id: 'meathead', label: 'STANDARD' },
           { id: 'keto', label: 'KETO' },
@@ -243,29 +303,40 @@ export function MacroCalculator({
         ].map((diet) => (
           <Pressable
             key={diet.id}
-            className={`border-2 border-black p-3 mb-2 flex-row justify-between items-center ${dietaryPreference === diet.id ? 'bg-black' : 'bg-white'}`}
+            className="border-2 p-3 mb-2 flex-row justify-between items-center"
+            style={{
+              borderColor,
+              backgroundColor: dietaryPreference === diet.id ? selectedBg : unselectedBg,
+            }}
             onPress={() => setDietaryPreference(diet.id)}
           >
-            <Text className={`font-mono font-bold text-sm ${dietaryPreference === diet.id ? 'text-white' : 'text-black'}`}>
+            <Text
+              className="font-mono font-bold text-sm"
+              style={{ color: dietaryPreference === diet.id ? selectedText : unselectedText }}
+            >
               {diet.label}
             </Text>
-            {dietaryPreference === diet.id && <Ionicons name="checkmark-sharp" size={20} color="white" />}
+            {dietaryPreference === diet.id && <Ionicons name="checkmark-sharp" size={20} color={checkmarkColor} />}
           </Pressable>
         ))}
       </View>
 
       <Pressable
-        className={`bg-black py-6 items-center justify-center mb-4 border-4 border-black ${loading || isSubmitting ? 'opacity-70' : ''}`}
+        className={`py-6 items-center justify-center mb-4 border-4 ${loading || isSubmitting ? 'opacity-70' : ''}`}
+        style={{ backgroundColor: selectedBg, borderColor }}
         onPress={handleCalculate}
         disabled={loading || isSubmitting}
       >
-        <Text className="font-mono text-2xl font-black text-white tracking-widest">{submitLabel}</Text>
+        <Text className="font-mono text-2xl font-black tracking-widest" style={{ color: selectedText }}>
+          {submitLabel}
+        </Text>
       </Pressable>
 
-      <Text className={`font-mono text-xs text-center px-2 leading-5 uppercase mb-4 ${isDark ? 'text-white' : 'text-black'}`}>
+      <Text className="font-mono text-xs text-center px-2 leading-5 uppercase mb-4" style={{ color: textColor }}>
         BUILT ON{' '}
         <Text
           className="underline"
+          style={{ color: textColor }}
           onPress={() =>
             Alert.alert(
               'THE SCIENCE',

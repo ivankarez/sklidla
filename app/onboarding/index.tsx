@@ -51,37 +51,43 @@ export default function WelcomeScreen() {
     transform: [{ translateY: ctaTranslate.value }],
   }));
 
-  const fg = isDark ? 'text-white' : 'text-black';
-  const border = isDark ? 'border-white' : 'border-black';
+  const screenBg = isDark ? '#000000' : '#FFFFFF';
+  const textColor = isDark ? '#FFFFFF' : '#000000';
+  const borderColor = isDark ? '#FFFFFF' : '#000000';
+  const panelBg = isDark ? '#000000' : '#FFFFFF';
+  const dividerBg = isDark ? '#FFFFFF' : '#000000';
+  const ctaBg = isDark ? '#FFFFFF' : '#000000';
+  const ctaText = isDark ? '#000000' : '#FFFFFF';
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: isDark ? '#000' : '#FFF' }} edges={['top', 'bottom']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: screenBg }} edges={['top', 'bottom']}>
       <ScrollView contentContainerClassName="flex-grow justify-between px-6 pt-6 pb-8">
         {/* Hero */}
         <View className="items-center">
           <Animated.View style={logoStyle} className="items-center mb-2">
             <Image
               source={require('../../assets/images/logo-square.png')}
-              className={`w-36 h-36 border-4 ${border}`}
+              className="w-36 h-36 border-4"
+              style={{ borderColor }}
               contentFit="contain"
             />
           </Animated.View>
 
           <Animated.View style={titleStyle} className="items-center mb-6">
-            <Text className={`font-mono text-5xl font-black tracking-tighter ${fg}`}>
+            <Text className="font-mono text-5xl font-black tracking-tighter" style={{ color: textColor }}>
               SKLIDLA
             </Text>
-            <View className={`w-full h-1 mt-2 ${isDark ? 'bg-white' : 'bg-black'}`} />
+            <View className="w-full h-1 mt-2" style={{ backgroundColor: dividerBg }} />
           </Animated.View>
 
           <Animated.View style={bodyStyle} className="w-full">
             {/* Main pitch card */}
-            <View className={`w-full border-4 p-5 mb-5 ${border} ${isDark ? 'bg-black' : 'bg-white'}`}>
-              <Text className={`font-mono text-lg font-black leading-7 mb-3 ${fg}`}>
+            <View className="w-full border-4 p-5 mb-5" style={{ borderColor, backgroundColor: panelBg }}>
+              <Text className="font-mono text-lg font-black leading-7 mb-3" style={{ color: textColor }}>
                 YOUR DATA. YOUR DEVICE.{'\n'}NO CREEPY CLOUDS. NO SUBSCRIPTIONS.
               </Text>
-              <View className={`h-0.5 mb-3 ${isDark ? 'bg-white' : 'bg-black'}`} />
-              <Text className={`font-mono text-sm font-bold leading-6 ${fg}`}>
+              <View className="h-0.5 mb-3" style={{ backgroundColor: dividerBg }} />
+              <Text className="font-mono text-sm font-bold leading-6" style={{ color: textColor }}>
                 SKLIDLA IS A FREE, OPEN-SOURCE CALORIE TRACKER THAT RESPECTS YOUR PRIVACY. EVERYTHING STAYS ON YOUR PHONE. PERIOD.
               </Text>
             </View>
@@ -93,16 +99,16 @@ export default function WelcomeScreen() {
                 { icon: '■', text: 'PRIVATE BY DEFAULT. ZERO DATA LEAVES.' },
                 { icon: '■', text: 'OPEN SOURCE. INSPECT THE CODE YOURSELF.' },
               ].map((item, i) => (
-                <View key={i} className={`flex-row items-start border-l-4 pl-4 ${border}`}>
-                  <Text className={`font-mono text-base font-black mr-3 ${fg}`}>{item.icon}</Text>
-                  <Text className={`font-mono text-sm font-bold leading-5 flex-1 ${fg}`}>{item.text}</Text>
+                <View key={i} className="flex-row items-start border-l-4 pl-4" style={{ borderColor }}>
+                  <Text className="font-mono text-base font-black mr-3" style={{ color: textColor }}>{item.icon}</Text>
+                  <Text className="font-mono text-sm font-bold leading-5 flex-1" style={{ color: textColor }}>{item.text}</Text>
                 </View>
               ))}
             </View>
 
             {/* Setup teaser */}
-            <View className={`w-full border-2 p-4 ${border} ${isDark ? 'bg-black' : 'bg-white'}`}>
-              <Text className={`font-mono text-xs font-bold leading-5 text-center uppercase ${fg}`}>
+            <View className="w-full border-2 p-4" style={{ borderColor, backgroundColor: panelBg }}>
+              <Text className="font-mono text-xs font-bold leading-5 text-center uppercase" style={{ color: textColor }}>
                 FIRST, LET&apos;S DIAL YOUR DAILY MACROS SO THIS APP ACTUALLY FITS YOUR CHAOS.
               </Text>
             </View>
@@ -112,15 +118,16 @@ export default function WelcomeScreen() {
         {/* Step indicator + CTA */}
         <Animated.View style={ctaStyle} className="mt-8">
           <View className="flex-row items-center justify-center mb-4 gap-2">
-            <View className={`w-8 h-2 ${isDark ? 'bg-white' : 'bg-black'}`} />
-            <View className={`w-8 h-2 ${isDark ? 'bg-white' : 'bg-black'} opacity-25`} />
-            <View className={`w-8 h-2 ${isDark ? 'bg-white' : 'bg-black'} opacity-25`} />
+            <View className="w-8 h-2" style={{ backgroundColor: dividerBg }} />
+            <View className="w-8 h-2 opacity-25" style={{ backgroundColor: dividerBg }} />
+            <View className="w-8 h-2 opacity-25" style={{ backgroundColor: dividerBg }} />
           </View>
           <Pressable
-            className={`py-5 items-center border-4 ${isDark ? 'bg-white border-white' : 'bg-black border-black'}`}
+            className="py-5 items-center border-4"
+            style={{ backgroundColor: ctaBg, borderColor }}
             onPress={() => router.push('/onboarding/macro-setup')}
           >
-            <Text className={`font-mono text-2xl font-black tracking-widest ${isDark ? 'text-black' : 'text-white'}`}>
+            <Text className="font-mono text-2xl font-black tracking-widest" style={{ color: ctaText }}>
               LET&apos;S GO
             </Text>
           </Pressable>

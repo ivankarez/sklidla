@@ -8,7 +8,7 @@ It rejects the sterile, clinical, "medical app" aesthetic of current market lead
 * **Palette:** Pure White (#FFFFFF), Deep Black (#000000), and grayscale only when absolutely necessary for hierarchy. Contrast should come from solid fills, inversion, and weight rather than color.
 * **Typography:** Monospace only. Heavy, rigid headers and compact terminal-style body text for stats, labels, and system messages. Massive, aggressive numbers.
 * **Iconography:** Filled logos and solid glyphs only. No thin outlines, gradients, skeuomorphism, or soft effects.
-* **Copywriting:** "Unhinged Supportive." (e.g., "FUEL ACQUIRED" instead of "Goal Reached", "FEED THE BEAST" instead of "Log Food").
+* **Copywriting:** "Unhinged Supportive." Clear first, weird second. Write like a funny person, not a slogan generator. Prefer "YOU DID THE THING." over "Goal Reached" and "LOG WHAT YOU ATE" over "Log Food". Never call food "fuel."
 
 ## 2. Core Tech Architecture
 * **Frontend Framework:** React Native via Expo.

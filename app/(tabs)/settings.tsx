@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Modal, Appearance, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getSetting, setSetting } from '../../db/dao';
+import { MacroCalculator } from '@/src/components/macro-calculator';
 
 export default function SettingsScreen() {
   const [aiEnabled, setAiEnabled] = useState(true);
@@ -123,81 +124,6 @@ export default function SettingsScreen() {
 
     return () => clearTimeout(timer);
   }, [aiEnabled, aiProvider, apiKey, goalCalories, goalProtein, goalCarbs, goalFats, gender, age, weight, height, activityLevel, goal, dietaryPreference, themePreference, isLoading]);
-
-  const handleCalculate = () => {
-    if (!age || !weight || !height) {
-      Alert.alert('WEAKNESS DETECTED', 'PROVIDE AGE, WEIGHT, AND HEIGHT TO PROCEED.');
-      return;
-    }
-    const a = parseInt(age, 10);
-    const w = parseFloat(weight);
-    const h = parseFloat(height);
-
-    if (isNaN(a) || isNaN(w) || isNaN(h)) {
-      Alert.alert('INVALID DATA', 'NUMBERS ONLY.');
-      return;
-    }
-
-    // Mifflin-St Jeor
-    let bmr = (10 * w) + (6.25 * h) - (5 * a);
-    if (gender === 'male') {
-      bmr += 5;
-    } else if (gender === 'female') {
-      bmr -= 161;
-    } else {
-      // Non-binary average
-      bmr -= 78;
-    }
-
-    let multiplier = 1.2;
-    if (activityLevel === 'light') multiplier = 1.375;
-    if (activityLevel === 'moderate') multiplier = 1.55;
-    if (activityLevel === 'active') multiplier = 1.725;
-    if (activityLevel === 'very_active') multiplier = 1.9;
-
-    let tdee = bmr * multiplier;
-
-    if (goal === 'cut') tdee -= 500;
-    if (goal === 'bulk') tdee += 500;
-
-    const totalCals = Math.round(tdee);
-    
-    let proteinGrams = 0;
-    let fatGrams = 0;
-    let carbGrams = 0;
-
-    if (dietaryPreference === 'meathead') {
-      // STANDARD: Protein 2.2g/kg, Fats 25%, Carbs fill the rest
-      proteinGrams = Math.round(w * 2.2);
-      fatGrams = Math.round((totalCals * 0.25) / 9);
-      carbGrams = Math.round((totalCals - (proteinGrams * 4) - (fatGrams * 9)) / 4);
-    } else if (dietaryPreference === 'keto') {
-      // KETO: Carbs 30g, Protein 1.8g/kg, Fats fill the rest
-      carbGrams = 30;
-      proteinGrams = Math.round(w * 1.8);
-      fatGrams = Math.round((totalCals - (proteinGrams * 4) - (carbGrams * 4)) / 9);
-    } else if (dietaryPreference === 'sugar_hater') {
-      // LOW-CARB: Carbs 20%, Protein 2.2g/kg, Fats fill the rest
-      carbGrams = Math.round((totalCals * 0.20) / 4);
-      proteinGrams = Math.round(w * 2.2);
-      fatGrams = Math.round((totalCals - (proteinGrams * 4) - (carbGrams * 4)) / 9);
-    } else if (dietaryPreference === 'carb_loader') {
-      // BULKING/CARBS: Protein 2.2g/kg, Fats 20%, Carbs fill the rest
-      proteinGrams = Math.round(w * 2.2);
-      fatGrams = Math.round((totalCals * 0.20) / 9);
-      carbGrams = Math.round((totalCals - (proteinGrams * 4) - (fatGrams * 9)) / 4);
-    }
-
-    // Failsafe against negative carbs/fats on extreme cuts
-    if (carbGrams < 0) carbGrams = 0;
-    if (fatGrams < 0) fatGrams = 0;
-
-    setGoalCalories(totalCals.toString());
-    setGoalProtein(proteinGrams.toString());
-    setGoalFats(fatGrams.toString());
-    setGoalCarbs(carbGrams.toString());
-    setIsCalculatorOpen(false);
-  };
 
   if (isLoading) {
     return (
@@ -379,141 +305,32 @@ export default function SettingsScreen() {
             </Pressable>
           </View>
           
-          <ScrollView contentContainerClassName="p-5 pb-10" keyboardShouldPersistTaps="handled">
-            <View className="mb-6 border-4 border-black p-4 bg-white shadow-[4px_4px_0px_0px_var(--color-shadow)]">
-              <Text className="font-mono text-lg font-black text-black mb-4">BIOMETRICS</Text>
-              
-              <View className="flex-row justify-between mb-4">
-                <Pressable 
-                  className={`flex-1 mr-1 border-2 border-black py-3 items-center ${gender === 'male' ? 'bg-black' : 'bg-white'}`}
-                  onPress={() => setGender('male')}
-                >
-                  <Text className={`font-mono text-[10px] font-bold ${gender === 'male' ? 'text-white' : 'text-black'}`}>MALE</Text>
-                </Pressable>
-                <Pressable 
-                  className={`flex-1 mx-1 border-2 border-black py-3 items-center ${gender === 'nonbinary' ? 'bg-black' : 'bg-white'}`}
-                  onPress={() => setGender('nonbinary')}
-                >
-                  <Text className={`font-mono text-[10px] font-bold ${gender === 'nonbinary' ? 'text-white' : 'text-black'}`}>DON&apos;T CARE</Text>
-                </Pressable>
-                <Pressable 
-                  className={`flex-1 ml-1 border-2 border-black py-3 items-center ${gender === 'female' ? 'bg-black' : 'bg-white'}`}
-                  onPress={() => setGender('female')}
-                >
-                  <Text className={`font-mono text-[10px] font-bold ${gender === 'female' ? 'text-white' : 'text-black'}`}>FEMALE</Text>
-                </Pressable>
-              </View>
-
-              <View className="flex-row justify-between">
-                <View className="flex-1 mr-2">
-                  <Text className="font-mono text-xs font-bold text-black mb-1">AGE</Text>
-                  <TextInput
-                    className="font-mono border-2 border-black bg-white p-3 text-black text-center text-lg"
-                    value={age}
-                    onChangeText={setAge}
-                    keyboardType="numeric"
-                    placeholder="YRS"
-                    placeholderTextColor="#999"
-                  />
-                </View>
-                <View className="flex-1 mx-1">
-                  <Text className="font-mono text-xs font-bold text-black mb-1">WEIGHT</Text>
-                  <TextInput
-                    className="font-mono border-2 border-black bg-white p-3 text-black text-center text-lg"
-                    value={weight}
-                    onChangeText={setWeight}
-                    keyboardType="numeric"
-                    placeholder="KG"
-                    placeholderTextColor="#999"
-                  />
-                </View>
-                <View className="flex-1 ml-2">
-                  <Text className="font-mono text-xs font-bold text-black mb-1">HEIGHT</Text>
-                  <TextInput
-                    className="font-mono border-2 border-black bg-white p-3 text-black text-center text-lg"
-                    value={height}
-                    onChangeText={setHeight}
-                    keyboardType="numeric"
-                    placeholder="CM"
-                    placeholderTextColor="#999"
-                  />
-                </View>
-              </View>
-            </View>
-
-            <View className="mb-6">
-              <Text className={`font-mono text-lg font-black mb-3 ${isDark ? 'text-white' : 'text-black'}`}>ACTIVITY LEVEL</Text>
-              {[
-                { id: 'sedentary', label: 'SEDENTARY (WEAK/NO EXERCISE)' },
-                { id: 'light', label: 'LIGHT (1-3 DAYS/WEEK)' },
-                { id: 'moderate', label: 'MODERATE (3-5 DAYS/WEEK)' },
-                { id: 'active', label: 'ACTIVE (6-7 DAYS/WEEK)' },
-                { id: 'very_active', label: 'VERY ACTIVE (MANUAL LABOR)' },
-              ].map((act) => (
-                <Pressable 
-                  key={act.id}
-                  className={`border-2 border-black p-3 mb-2 flex-row justify-between items-center ${activityLevel === act.id ? 'bg-black' : 'bg-white'}`}
-                  onPress={() => setActivityLevel(act.id)}
-                >
-                  <Text className={`font-mono font-bold text-sm ${activityLevel === act.id ? 'text-white' : 'text-black'}`}>
-                    {act.label}
-                  </Text>
-                  {activityLevel === act.id && <Ionicons name="checkmark-sharp" size={20} color="white" />}
-                </Pressable>
-              ))}
-            </View>
-
-            <View className="mb-6">
-              <Text className={`font-mono text-lg font-black mb-3 ${isDark ? 'text-white' : 'text-black'}`}>PRIMARY OBJECTIVE</Text>
-              {[
-                { id: 'cut', label: 'STARVE THE WEAKNESS (CUT)' },
-                { id: 'maintain', label: 'MAINTAIN' },
-                { id: 'bulk', label: 'FEED THE BEAST (BULK)' },
-              ].map((g) => (
-                <Pressable 
-                  key={g.id}
-                  className={`border-4 border-black p-4 mb-3 items-center ${goal === g.id ? 'bg-black' : 'bg-white'}`}
-                  onPress={() => setGoal(g.id)}
-                >
-                  <Text className={`font-mono text-lg font-black tracking-widest ${goal === g.id ? 'text-white' : 'text-black'}`}>
-                    {g.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-
-            <View className="mb-8">
-              <Text className={`font-mono text-lg font-black mb-3 ${isDark ? 'text-white' : 'text-black'}`}>DIETARY DOCTRINE</Text>
-              {[
-                { id: 'meathead', label: 'STANDARD (MEATHEAD)' },
-                { id: 'keto', label: 'KETO (FAT BURNING)' },
-                { id: 'sugar_hater', label: 'LOW-CARB (SUGAR HATER)' },
-                { id: 'carb_loader', label: 'CARB LOADER (PURE ENERGY)' },
-              ].map((diet) => (
-                <Pressable 
-                  key={diet.id}
-                  className={`border-2 border-black p-3 mb-2 flex-row justify-between items-center ${dietaryPreference === diet.id ? 'bg-black' : 'bg-white'}`}
-                  onPress={() => setDietaryPreference(diet.id)}
-                >
-                  <Text className={`font-mono font-bold text-sm ${dietaryPreference === diet.id ? 'text-white' : 'text-black'}`}>
-                    {diet.label}
-                  </Text>
-                  {dietaryPreference === diet.id && <Ionicons name="checkmark-sharp" size={20} color="white" />}
-                </Pressable>
-              ))}
-            </View>
-
-            <Pressable className="bg-black py-6 items-center justify-center mb-4 border-4 border-black" onPress={handleCalculate}>
-              <Text className="font-mono text-2xl font-black text-white tracking-widest">LET&apos;S SUFFER</Text>
-            </Pressable>
-            
-            <Text className={`font-mono text-xs text-center px-2 leading-5 uppercase mb-4 ${isDark ? 'text-white' : 'text-black'}`}>
-              WARNING: RELIES ON <Text className="underline" onPress={() => Alert.alert(
-                'THE SCIENCE',
-                'The Mifflin-St Jeor equation (1990) is widely considered the most accurate predictive equation for basal metabolic rate (BMR) in healthy adults.\n\nIt forms the baseline for your calorie targets before activity multipliers and goals are applied. Your protein is calculated at 2.2g/kg (1g/lb) to prevent muscle wasting during a cut and maximize synthesis during a bulk.\n\n"The app talks like a drill sergeant, but it calculates like a registered dietitian."'
-              )}>MIFFLIN-ST JEOR MATHEMATICS</Text>.
-            </Text>
-          </ScrollView>
+          <MacroCalculator
+            isDark={isDark}
+            initialProfile={{
+              gender,
+              age,
+              weight,
+              height,
+              activityLevel,
+              goal,
+              dietaryPreference,
+            }}
+            onCalculated={({ calories, protein, carbs, fats, profile }) => {
+              setGoalCalories(calories.toString());
+              setGoalProtein(protein.toString());
+              setGoalCarbs(carbs.toString());
+              setGoalFats(fats.toString());
+              setGender(profile.gender);
+              setAge(profile.age);
+              setWeight(profile.weight);
+              setHeight(profile.height);
+              setActivityLevel(profile.activityLevel);
+              setGoal(profile.goal);
+              setDietaryPreference(profile.dietaryPreference);
+              setIsCalculatorOpen(false);
+            }}
+          />
         </SafeAreaView>
       </Modal>
 

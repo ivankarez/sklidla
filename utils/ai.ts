@@ -236,6 +236,7 @@ Rules:
 };
 
 const extractTextFromContent = (content: unknown): string => {
+  console.log('Raw AI content:', content);
   if (typeof content === 'string') return content;
   if (Array.isArray(content)) {
     return content
@@ -272,6 +273,7 @@ const parseChatJsonRaw = (responseJson: any): unknown => {
 
 const parseChatJsonContent = (responseJson: any): AiExtractionResult => {
   const parsed = parseChatJsonRaw(responseJson);
+  console.log('Parsed AI JSON:', parsed);
   return sanitizeAiExtraction(parsed);
 };
 
@@ -323,11 +325,14 @@ const requestOpenAiJson = async (apiKey: string, model: string, prompt: string):
 
 const requestGeminiJson = async (apiKey: string, model: string, prompt: string, imageBase64?: string): Promise<unknown> => {
   const url = `${GEMINI_BASE_URL}/${model}:generateContent`;
-  const contentPart: any = { parts: [{ text: prompt }] };
+
+  // Build parts: if image present, put inline_data first, then text prompt
+  const parts: any[] = [];
   if (imageBase64) {
-    // Send image bytes as a part. The Generative Language API accepts images in different shapes; this attempts a straightforward image part.
-    contentPart.parts.push({ image: { mime_type: 'image/jpeg', image_bytes: imageBase64 } });
+    const base64Data = typeof imageBase64 === 'string' ? imageBase64.replace(/^data:[^;]+;base64,/, '') : '';
+    parts.push({ inline_data: { mime_type: 'image/jpeg', data: base64Data } });
   }
+  parts.push({ text: prompt });
 
   const response = await fetch(url, {
     method: 'POST',
@@ -337,7 +342,7 @@ const requestGeminiJson = async (apiKey: string, model: string, prompt: string, 
       'HTTP-Referer': 'https://sklidla.app',
       'X-Title': 'Sklidla',
     },
-    body: JSON.stringify({ contents: [contentPart] }),
+    body: JSON.stringify({ contents: [{ parts }] }),
   });
 
   const json = await response.json();
@@ -346,32 +351,31 @@ const requestGeminiJson = async (apiKey: string, model: string, prompt: string, 
     throw new Error(message);
   }
 
-  // Normalize Gemini response into a chat-like shape our parser understands.
-  // The API can return different shapes (candidates, outputs). Try common fields and fall back to stringifying the response.
+  // Extract textual output from Gemini response (candidates or outputs shapes)
   let outputText = '';
-  if (typeof json === 'string') outputText = json;
-  else if (Array.isArray(json?.candidates) && json.candidates.length > 0) {
+  if (Array.isArray(json?.candidates) && json.candidates.length > 0) {
     const candidate = json.candidates[0];
     if (typeof candidate?.content === 'string') outputText = candidate.content;
     else if (Array.isArray(candidate?.content)) {
-      outputText = candidate.content
-        .map((c: any) => (typeof c === 'string' ? c : (typeof c?.text === 'string' ? c.text : '')))
-        .join('\n')
-        .trim();
+      outputText = candidate.content.map((c: any) => (typeof c === 'string' ? c : (c?.text || ''))).join('\n').trim();
     } else if (typeof candidate?.output === 'string') outputText = candidate.output;
     else if (candidate?.content?.[0]?.text) outputText = candidate.content[0].text;
   } else if (Array.isArray(json?.outputs) && json.outputs.length > 0) {
     const output = json.outputs[0];
     if (typeof output?.content === 'string') outputText = output.content;
     else if (Array.isArray(output?.content)) {
-      outputText = output.content.map((part: any) => (typeof part === 'string' ? part : (part?.text || ''))).join('\n').trim();
+      outputText = output.content.map((p: any) => (typeof p === 'string' ? p : (p?.text || ''))).join('\n').trim();
     } else if (typeof output?.text === 'string') outputText = output.text;
   }
 
   if (!outputText) outputText = JSON.stringify(json);
 
-  // Return a minimal chat-like wrapper so existing parsers can consume it.
-  return { choices: [{ message: { content: outputText } }] };
+  // Parse the returned text as JSON and return the parsed object (same shape as requestOpenAiJson/requestOpenRouterJson)
+  try {
+    return parseMaybeJson(outputText);
+  } catch (e) {
+    throw new Error(`FAILED_TO_PARSE_GEMINI_RESPONSE: ${(e instanceof Error) ? e.message : String(e)}`);
+  }
 };
 
 class OpenRouterProvider implements AiProvider {
@@ -450,8 +454,8 @@ class GeminiProvider implements AiProvider {
   async analyzeImage(input: AnalyzeImageInput): Promise<AiExtractionResult> {
     const prompt = buildUnifiedPrompt(input.nameHint, input.brandHint);
     try {
-      const raw = await requestGeminiJson(this.config.apiKey, GEMINI_VISION_MODEL, prompt, input.base64Image);
-      return parseChatJsonContent(raw);
+      const parsed = await requestGeminiJson(this.config.apiKey, GEMINI_VISION_MODEL, prompt, input.base64Image);
+      return sanitizeAiExtraction(parsed);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'GEMINI FAILURE';
       throw new Error(message);

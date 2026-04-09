@@ -253,6 +253,9 @@ export default function SettingsScreen() {
                   placeholder={`Paste your ${aiProvider} key here`}
                   placeholderTextColor="#999"
                 />
+                {aiProvider === 'Gemini' && (
+                  <Text className="font-mono text-xs text-black ml-0 mt-2">Use Google AI Studio API key. Sent as x-goog-api-key header. Default model: gemini-3-flash-preview.</Text>
+                )}
               </View>
               <Text className="font-mono text-xs text-black ml-4 -mt-2.5 leading-4.5">KEYS STAY ENCRYPTED ON THIS DEVICE. NO SERVER MIDDLEMAN.</Text>
             </View>

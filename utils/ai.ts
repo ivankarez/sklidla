@@ -75,6 +75,9 @@ const OPENROUTER_VISION_MODEL = 'openai/gpt-5.4:online';
 const OPENAI_VISION_MODEL = 'gpt-5.4';
 const OPENROUTER_TEXT_MODEL = 'openai/gpt-5.4:online';
 const OPENAI_TEXT_MODEL = 'gpt-5.4';
+const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
+const GEMINI_TEXT_MODEL = 'gemini-3-flash-preview';
+const GEMINI_VISION_MODEL = 'gemini-3-flash-preview';
 
 const toNonNegativeNumber = (value: unknown): number => {
   const numeric = Number(value);
@@ -318,6 +321,59 @@ const requestOpenAiJson = async (apiKey: string, model: string, prompt: string):
   return parseChatJsonRaw(json);
 };
 
+const requestGeminiJson = async (apiKey: string, model: string, prompt: string, imageBase64?: string): Promise<unknown> => {
+  const url = `${GEMINI_BASE_URL}/${model}:generateContent`;
+  const contentPart: any = { parts: [{ text: prompt }] };
+  if (imageBase64) {
+    // Send image bytes as a part. The Generative Language API accepts images in different shapes; this attempts a straightforward image part.
+    contentPart.parts.push({ image: { mime_type: 'image/jpeg', image_bytes: imageBase64 } });
+  }
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': apiKey,
+      'HTTP-Referer': 'https://sklidla.app',
+      'X-Title': 'Sklidla',
+    },
+    body: JSON.stringify({ contents: [contentPart] }),
+  });
+
+  const json = await response.json();
+  if (!response.ok) {
+    const message = json?.error?.message || `GEMINI HTTP ${response.status}`;
+    throw new Error(message);
+  }
+
+  // Normalize Gemini response into a chat-like shape our parser understands.
+  // The API can return different shapes (candidates, outputs). Try common fields and fall back to stringifying the response.
+  let outputText = '';
+  if (typeof json === 'string') outputText = json;
+  else if (Array.isArray(json?.candidates) && json.candidates.length > 0) {
+    const candidate = json.candidates[0];
+    if (typeof candidate?.content === 'string') outputText = candidate.content;
+    else if (Array.isArray(candidate?.content)) {
+      outputText = candidate.content
+        .map((c: any) => (typeof c === 'string' ? c : (typeof c?.text === 'string' ? c.text : '')))
+        .join('\n')
+        .trim();
+    } else if (typeof candidate?.output === 'string') outputText = candidate.output;
+    else if (candidate?.content?.[0]?.text) outputText = candidate.content[0].text;
+  } else if (Array.isArray(json?.outputs) && json.outputs.length > 0) {
+    const output = json.outputs[0];
+    if (typeof output?.content === 'string') outputText = output.content;
+    else if (Array.isArray(output?.content)) {
+      outputText = output.content.map((part: any) => (typeof part === 'string' ? part : (part?.text || ''))).join('\n').trim();
+    } else if (typeof output?.text === 'string') outputText = output.text;
+  }
+
+  if (!outputText) outputText = JSON.stringify(json);
+
+  // Return a minimal chat-like wrapper so existing parsers can consume it.
+  return { choices: [{ message: { content: outputText } }] };
+};
+
 class OpenRouterProvider implements AiProvider {
   constructor(private readonly config: ProviderConfig) {}
 
@@ -391,9 +447,15 @@ class OpenAiProvider implements AiProvider {
 class GeminiProvider implements AiProvider {
   constructor(private readonly config: ProviderConfig) {}
 
-  async analyzeImage(_input: AnalyzeImageInput): Promise<AiExtractionResult> {
-    void this.config;
-    throw new Error('GEMINI DIRECT PROVIDER NOT IMPLEMENTED YET. USE OPENROUTER OR OPENAI.');
+  async analyzeImage(input: AnalyzeImageInput): Promise<AiExtractionResult> {
+    const prompt = buildUnifiedPrompt(input.nameHint, input.brandHint);
+    try {
+      const raw = await requestGeminiJson(this.config.apiKey, GEMINI_VISION_MODEL, prompt, input.base64Image);
+      return parseChatJsonContent(raw);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'GEMINI FAILURE';
+      throw new Error(message);
+    }
   }
 }
 
@@ -480,9 +542,11 @@ export async function processFoodNameAutofill(input: FoodNameAutofillInput): Pro
         ? await requestOpenAiJson(config.apiKey, OPENAI_TEXT_MODEL, prompt)
         : config.name === 'OpenRouter'
           ? await requestOpenRouterJson(config.apiKey, OPENROUTER_TEXT_MODEL, prompt)
-          : (() => {
-              throw new Error(`${config.name.toUpperCase()} DIRECT PROVIDER NOT IMPLEMENTED YET. USE OPENROUTER OR OPENAI.`);
-            })();
+          : config.name === 'Gemini'
+            ? await requestGeminiJson(config.apiKey, GEMINI_TEXT_MODEL, prompt)
+            : (() => {
+                throw new Error(`${config.name.toUpperCase()} DIRECT PROVIDER NOT IMPLEMENTED YET. USE OPENROUTER OR OPENAI.`);
+              })();
     return sanitizeFoodNameAutofill(raw);
   } catch (error) {
     console.error(error);

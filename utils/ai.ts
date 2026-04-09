@@ -1,6 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import { Alert } from 'react-native';
 import { getSetting } from '../db/dao';
+import { requestClaudeJson, CLAUDE_TEXT_MODEL } from './claude';
 
 type AiProviderName = 'OpenRouter' | 'OpenAI' | 'Gemini' | 'Claude';
 
@@ -466,9 +467,15 @@ class GeminiProvider implements AiProvider {
 class ClaudeProvider implements AiProvider {
   constructor(private readonly config: ProviderConfig) {}
 
-  async analyzeImage(_input: AnalyzeImageInput): Promise<AiExtractionResult> {
-    void this.config;
-    throw new Error('CLAUDE DIRECT PROVIDER NOT IMPLEMENTED YET. USE OPENROUTER OR OPENAI.');
+  async analyzeImage(input: AnalyzeImageInput): Promise<AiExtractionResult> {
+    const prompt = buildUnifiedPrompt(input.nameHint, input.brandHint);
+    try {
+      const parsed = await requestClaudeJson(this.config.apiKey, CLAUDE_TEXT_MODEL, prompt, input.base64Image);
+      return sanitizeAiExtraction(parsed);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'CLAUDE FAILURE';
+      throw new Error(message);
+    }
   }
 }
 
@@ -548,9 +555,11 @@ export async function processFoodNameAutofill(input: FoodNameAutofillInput): Pro
           ? await requestOpenRouterJson(config.apiKey, OPENROUTER_TEXT_MODEL, prompt)
           : config.name === 'Gemini'
             ? await requestGeminiJson(config.apiKey, GEMINI_TEXT_MODEL, prompt)
-            : (() => {
-                throw new Error(`${config.name.toUpperCase()} DIRECT PROVIDER NOT IMPLEMENTED YET. USE OPENROUTER OR OPENAI.`);
-              })();
+            : config.name === 'Claude'
+              ? await requestClaudeJson(config.apiKey, CLAUDE_TEXT_MODEL, prompt)
+              : (() => {
+                  throw new Error(`${config.name.toUpperCase()} DIRECT PROVIDER NOT IMPLEMENTED YET. USE OPENROUTER OR OPENAI.`);
+                })();
     return sanitizeFoodNameAutofill(raw);
   } catch (error) {
     console.error(error);

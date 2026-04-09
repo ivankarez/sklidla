@@ -323,7 +323,7 @@ const requestOpenAiJson = async (apiKey: string, model: string, prompt: string):
   return parseChatJsonRaw(json);
 };
 
-const requestGeminiJson = async (apiKey: string, model: string, prompt: string, imageBase64?: string): Promise<unknown> => {
+export const requestGeminiJson = async (apiKey: string, model: string, prompt: string, imageBase64?: string): Promise<unknown> => {
   const url = `${GEMINI_BASE_URL}/${model}:generateContent`;
 
   // Build parts: if image present, put inline_data first, then text prompt

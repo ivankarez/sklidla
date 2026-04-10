@@ -1,0 +1,93 @@
+name: Android release artifacts
+
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Git tag to build and publish
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-android-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Resolve build ref
+        id: ref
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out release ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ref.outputs.tag }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Restore Android upload keystore
+        env:
+          ANDROID_UPLOAD_KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+        run: |
+          mkdir -p android/keystores
+          echo "$ANDROID_UPLOAD_KEYSTORE_BASE64" | base64 --decode > android/keystores/sklidla-upload.keystore
+
+      - name: Run quality gate
+        run: |
+          npm run lint
+          npm test
+
+      - name: Build signed Android artifacts
+        env:
+          ANDROID_UPLOAD_STORE_FILE: keystores/sklidla-upload.keystore
+          ANDROID_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
+          ANDROID_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        run: |
+          npm run android:release:aab
+          npm run android:release:apk
+
+      - name: Rename release artifacts
+        run: |
+          TAG="${{ steps.ref.outputs.tag }}"
+          VERSION="${TAG#v}"
+          cp android/app/build/outputs/apk/release/app-release.apk "sklidla-${VERSION}.apk"
+          cp android/app/build/outputs/bundle/release/app-release.aab "sklidla-${VERSION}.aab"
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release-${{ steps.ref.outputs.tag }}
+          path: |
+            sklidla-*.apk
+            sklidla-*.aab
+
+      - name: Attach APK to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ref.outputs.tag }}
+          files: sklidla-*.apk

@@ -5,8 +5,12 @@
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "android:prebuild": "expo prebuild --platform android",
+    "android:release:aab": "cd android && ./gradlew bundleRelease",
+    "android:release:apk": "cd android && ./gradlew assembleRelease",
+    "android:release": "npm run android:release:aab && npm run android:release:apk",
+    "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
     "test": "vitest run"

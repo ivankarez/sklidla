@@ -29,6 +29,13 @@ yarn-error.*
 # macOS
 .DS_Store
 *.pem
+android/local.properties
+android/keystore.properties
+android/keystores/
+android/app/*.keystore
+android/app/*.jks
+android/*.keystore
+android/*.jks
 
 # local env files
 .env*.local
@@ -40,4 +47,3 @@ app-example
 
 # generated native folders
 /ios
-/android

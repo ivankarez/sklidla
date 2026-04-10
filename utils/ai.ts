@@ -1,7 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import { Alert } from 'react-native';
 import { getSetting } from '../db/dao';
-import { requestClaudeJson, CLAUDE_TEXT_MODEL } from './claude';
+import { CLAUDE_TEXT_MODEL, requestClaudeJson } from './claude';
 
 type AiProviderName = 'OpenRouter' | 'OpenAI' | 'Gemini' | 'Claude';
 
@@ -343,7 +343,12 @@ export const requestGeminiJson = async (apiKey: string, model: string, prompt: s
       'HTTP-Referer': 'https://sklidla.app',
       'X-Title': 'Sklidla',
     },
-    body: JSON.stringify({ contents: [{ parts }] }),
+    body: JSON.stringify(
+      { 
+        contents: [{ parts }],
+        tools: [ { google_search: {} } ]
+      }
+    ),
   });
 
   const json = await response.json();
@@ -353,21 +358,7 @@ export const requestGeminiJson = async (apiKey: string, model: string, prompt: s
   }
 
   // Extract textual output from Gemini response (candidates or outputs shapes)
-  let outputText = '';
-  if (Array.isArray(json?.candidates) && json.candidates.length > 0) {
-    const candidate = json.candidates[0];
-    if (typeof candidate?.content === 'string') outputText = candidate.content;
-    else if (Array.isArray(candidate?.content)) {
-      outputText = candidate.content.map((c: any) => (typeof c === 'string' ? c : (c?.text || ''))).join('\n').trim();
-    } else if (typeof candidate?.output === 'string') outputText = candidate.output;
-    else if (candidate?.content?.[0]?.text) outputText = candidate.content[0].text;
-  } else if (Array.isArray(json?.outputs) && json.outputs.length > 0) {
-    const output = json.outputs[0];
-    if (typeof output?.content === 'string') outputText = output.content;
-    else if (Array.isArray(output?.content)) {
-      outputText = output.content.map((p: any) => (typeof p === 'string' ? p : (p?.text || ''))).join('\n').trim();
-    } else if (typeof output?.text === 'string') outputText = output.text;
-  }
+  let outputText = json.candidates[0]?.content?.parts[0]?.text || '';
 
   if (!outputText) outputText = JSON.stringify(json);
 

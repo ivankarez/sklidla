@@ -27,23 +27,6 @@ Sklidla is trying a different approach:
 - **Fast correction flow:** AI can guess, but you still get the final say before anything lands in your log.
 - **Open source:** inspect it, fork it, break it, improve it.
 
-## Current status
-
-Sklidla is currently an **Android alpha / early preview**.
-
-| Area | Status |
-| --- | --- |
-| Android | Primary target |
-| iOS | Not part of the current release plan |
-| Web | Not part of the current release plan |
-| Local food library | Working |
-| Manual logging | Working |
-| Meal scan flow | Working |
-| Nutrition label scan flow | Working |
-| Optional AI autofill | Working |
-| Direct OpenRouter / OpenAI support | Working |
-| Direct Gemini support | Working |
-
 ## What it does today
 
 - **Dashboard / ledger:** big calorie count, macro progress bars, daily history

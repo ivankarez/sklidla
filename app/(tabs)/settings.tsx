@@ -8,9 +8,14 @@ import { getSetting, setSetting, clearAllData } from '../../db/dao';
 import { useRouter } from 'expo-router';
 import { MacroCalculator } from '@/src/components/macro-calculator';
 
+const AI_PROVIDERS = ['OpenRouter', 'OpenAI', 'Gemini'] as const;
+type AiProviderName = typeof AI_PROVIDERS[number];
+const isAiProviderName = (value: string): value is AiProviderName =>
+  AI_PROVIDERS.some((provider) => provider === value);
+
 export default function SettingsScreen() {
   const [aiEnabled, setAiEnabled] = useState(true);
-  const [aiProvider, setAiProvider] = useState('OpenRouter');
+  const [aiProvider, setAiProvider] = useState<AiProviderName>('OpenRouter');
   const [apiKey, setApiKey] = useState('');
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -45,7 +50,9 @@ export default function SettingsScreen() {
         if (storedAiEnabled !== null) setAiEnabled(storedAiEnabled === 'true');
         
         const storedProvider = await getSetting('ai_provider');
-        if (storedProvider) setAiProvider(storedProvider);
+        if (storedProvider && isAiProviderName(storedProvider)) {
+          setAiProvider(storedProvider);
+        }
 
         const storedKey = await SecureStore.getItemAsync('apiKey');
         if (storedKey) {
@@ -226,7 +233,7 @@ export default function SettingsScreen() {
                 </Pressable>
                 {isProviderDropdownOpen && (
                   <View className="border-2 border-t-0 border-black bg-white">
-                    {['OpenRouter', 'OpenAI', 'Gemini', 'Claude'].map((provider, index, arr) => (
+                    {AI_PROVIDERS.map((provider, index, arr) => (
                       <Pressable 
                         key={provider} 
                         className={`p-4 ${index !== arr.length - 1 ? 'border-b-2 border-black' : ''}`}

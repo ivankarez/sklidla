@@ -1,9 +1,8 @@
 import * as SecureStore from 'expo-secure-store';
 import { Alert } from 'react-native';
 import { getSetting } from '../db/dao';
-import { CLAUDE_TEXT_MODEL, requestClaudeJson } from './claude';
 
-type AiProviderName = 'OpenRouter' | 'OpenAI' | 'Gemini' | 'Claude';
+type AiProviderName = 'OpenRouter' | 'OpenAI' | 'Gemini';
 
 export interface AnalyzeImageInput {
   base64Image: string;
@@ -455,25 +454,10 @@ class GeminiProvider implements AiProvider {
   }
 }
 
-class ClaudeProvider implements AiProvider {
-  constructor(private readonly config: ProviderConfig) {}
-
-  async analyzeImage(input: AnalyzeImageInput): Promise<AiExtractionResult> {
-    const prompt = buildUnifiedPrompt(input.nameHint, input.brandHint);
-    try {
-      const parsed = await requestClaudeJson(this.config.apiKey, CLAUDE_TEXT_MODEL, prompt, input.base64Image);
-      return sanitizeAiExtraction(parsed);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'CLAUDE FAILURE';
-      throw new Error(message);
-    }
-  }
-}
-
 const loadProviderConfig = async (): Promise<ProviderConfig | null> => {
   const aiProvider = (await getSetting('ai_provider')) || 'OpenRouter';
   const providerName: AiProviderName =
-    aiProvider === 'OpenAI' || aiProvider === 'Gemini' || aiProvider === 'Claude'
+    aiProvider === 'OpenAI' || aiProvider === 'Gemini'
       ? aiProvider
       : 'OpenRouter';
 
@@ -498,8 +482,6 @@ const createProvider = (config: ProviderConfig): AiProvider => {
       return new OpenAiProvider(config);
     case 'Gemini':
       return new GeminiProvider(config);
-    case 'Claude':
-      return new ClaudeProvider(config);
     case 'OpenRouter':
     default:
       return new OpenRouterProvider(config);
@@ -539,18 +521,19 @@ export async function processFoodNameAutofill(input: FoodNameAutofillInput): Pro
 
   try {
     const prompt = buildFoodNameAutofillPrompt(input);
-    const raw =
-      config.name === 'OpenAI'
-        ? await requestOpenAiJson(config.apiKey, OPENAI_TEXT_MODEL, prompt)
-        : config.name === 'OpenRouter'
-          ? await requestOpenRouterJson(config.apiKey, OPENROUTER_TEXT_MODEL, prompt)
-          : config.name === 'Gemini'
-            ? await requestGeminiJson(config.apiKey, GEMINI_TEXT_MODEL, prompt)
-            : config.name === 'Claude'
-              ? await requestClaudeJson(config.apiKey, CLAUDE_TEXT_MODEL, prompt)
-              : (() => {
-                  throw new Error(`${config.name.toUpperCase()} DIRECT PROVIDER NOT IMPLEMENTED YET. USE OPENROUTER OR OPENAI.`);
-                })();
+    let raw: unknown;
+    switch (config.name) {
+      case 'OpenAI':
+        raw = await requestOpenAiJson(config.apiKey, OPENAI_TEXT_MODEL, prompt);
+        break;
+      case 'Gemini':
+        raw = await requestGeminiJson(config.apiKey, GEMINI_TEXT_MODEL, prompt);
+        break;
+      case 'OpenRouter':
+      default:
+        raw = await requestOpenRouterJson(config.apiKey, OPENROUTER_TEXT_MODEL, prompt);
+        break;
+    }
     return sanitizeFoodNameAutofill(raw);
   } catch (error) {
     console.error(error);

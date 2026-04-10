@@ -14,7 +14,7 @@ It rejects the sterile, clinical, "medical app" aesthetic of current market lead
 * **Frontend Framework:** React Native via Expo.
 * **Local Database:** SQLite (`expo-sqlite`). 100% offline-first, private data storage.
 * **Security:** `expo-secure-store` to lock API keys safely in the device's keychain/keystore.
-* **AI Engine:** Bring Your Own Key (BYOK) architecture. Users supply their own API keys (OpenRouter, OpenAI, Gemini, Claude) to process images. Zero server costs for the project.
+* **AI Engine:** Bring Your Own Key (BYOK) architecture. Users supply their own API keys (OpenRouter, OpenAI, Gemini) to process images. Zero server costs for the project.
 
 ## 3. Key Functionalities
 * **The Plate Scanner:** Snap a photo of a meal. AI identifies the components and returns a JSON payload of base macros. The user verifies and adjusts the quantity via a massive visual slider before logging.
@@ -76,5 +76,5 @@ It rejects the sterile, clinical, "medical app" aesthetic of current market lead
 * **Purpose:** Configuring goals and handling BYOK credentials.
 * **Elements:**
     * Input fields for aggressive daily Macro Goals.
-    * **API Connectors:** Locked-down monospace input fields with filled service logos for pasting OpenAI, OpenRouter, Gemini, or Claude keys.
+    * **API Connectors:** Locked-down monospace input fields with filled service logos for pasting OpenAI, OpenRouter, or Gemini keys.
 * **Relations:** Accessible from the **Dashboard Screen**. Saves keys to `expo-secure-store` and goals to the `settings` table.

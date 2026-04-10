@@ -43,7 +43,6 @@ Sklidla is currently an **Android alpha / early preview**.
 | Optional AI autofill | Working |
 | Direct OpenRouter / OpenAI support | Working |
 | Direct Gemini support | Working |
-| Direct Claude provider support | Not wired yet |
 
 ## What it does today
 
@@ -79,12 +78,7 @@ AI is optional. When enabled, it helps with:
 
 - **OpenRouter**
 - **OpenAI**
-
-### Not fully implemented yet
-
-- **Claude direct provider**
-
-Claude is not yet wired as a direct provider in the app. Gemini direct provider is now implemented; see settings for how to provide a Google AI Studio API key.
+- **Gemini**
 
 
 ## Tech stack
@@ -150,7 +144,6 @@ Near-term work that would make Sklidla meaner, faster, and more useful:
 
 - tighten the camera-to-verification flow
 - improve README visuals with screenshots or a short demo GIF
-- finish direct Claude provider support or remove the placeholders
 - polish Android release packaging
 - keep reducing friction in food creation and logging
 

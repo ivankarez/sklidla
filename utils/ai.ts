@@ -1,6 +1,6 @@
+import { getSetting } from '@/db/dao';
 import * as SecureStore from 'expo-secure-store';
 import { Alert } from 'react-native';
-import { getSetting } from '../db/dao';
 
 type AiProviderName = 'OpenRouter' | 'OpenAI' | 'Gemini';
 

@@ -3,7 +3,7 @@ import { Alert, useColorScheme } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { getLogsByDate, getSetting, deleteLog, LogEntry } from '../../db/dao';
+import { getLogsByDate, getSetting, deleteLog, LogEntry } from '@/db/dao';
 import { Animated } from '@/src/tw/animated';
 import { useSharedValue, withTiming, withDelay, Easing, useAnimatedStyle } from 'react-native-reanimated';
 import { MaterialIcons } from '@expo/vector-icons';

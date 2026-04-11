@@ -100,6 +100,12 @@ npm start
 npm run lint
 ```
 
+### 4. Run the tests
+
+```bash
+npm test
+```
+
 ## Project structure
 
 | Path | What lives there |

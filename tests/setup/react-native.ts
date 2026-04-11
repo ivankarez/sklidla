@@ -13,6 +13,31 @@ let localSearchParams = {};
 
 const mockSettings = new Map();
 let mockLogs = [];
+let mockFoods = [];
+let mockServingSizes = [];
+let nextFoodId = 1;
+let nextServingSizeId = 1;
+let nextLogId = 1;
+let pendingCreatedLogFood = null;
+
+const resetMockState = () => {
+  mockSettings.clear();
+  mockLogs = [];
+  mockFoods = [];
+  mockServingSizes = [];
+  nextFoodId = 1;
+  nextServingSizeId = 1;
+  nextLogId = 1;
+  pendingCreatedLogFood = null;
+};
+
+const toLocalSqlDate = (value) => {
+  const date = new Date(value);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 vi.mock('expo-router', () => {
   const Tabs = ({ children }) =>
@@ -114,6 +139,20 @@ vi.mock('expo-secure-store', () => ({
   deleteItemAsync: vi.fn(async () => {}),
 }));
 
+vi.mock('@/src/log-food-session', () => ({
+  setPendingCreatedLogFood: (value) => {
+    pendingCreatedLogFood = value;
+  },
+  consumePendingCreatedLogFood: () => {
+    const value = pendingCreatedLogFood;
+    pendingCreatedLogFood = null;
+    return value;
+  },
+  __resetPendingCreatedLogFood: () => {
+    pendingCreatedLogFood = null;
+  },
+}));
+
 vi.mock('@/src/tw', async () => {
   const reactNative = await import('react-native');
 
@@ -152,19 +191,111 @@ vi.mock('@/db/dao', () => ({
   setSetting: vi.fn(async (key, value) => {
     mockSettings.set(key, value);
   }),
-  getLogsByDate: vi.fn(async () => mockLogs),
-  deleteLog: vi.fn(async () => {}),
-  getLogById: vi.fn(async () => null),
-  getServingSizes: vi.fn(async () => []),
-  logFood: vi.fn(async () => 1),
-  updateLog: vi.fn(async () => {}),
+  addFood: vi.fn(async (food) => {
+    const createdFood = { id: nextFoodId++, ...food };
+    mockFoods.push(createdFood);
+    return createdFood.id;
+  }),
+  updateFood: vi.fn(async (id, food) => {
+    mockFoods = mockFoods.map((item) => (item.id === id ? { id, ...food } : item));
+  }),
+  getAllFoods: vi.fn(async () => mockFoods),
+  searchFoods: vi.fn(async (query) => {
+    const normalizedQuery = query.trim().toLowerCase();
+    return mockFoods.filter((food) => {
+      const haystacks = [food.name, food.brand ?? ''];
+      return haystacks.some((value) => value.toLowerCase().includes(normalizedQuery));
+    });
+  }),
+  addServingSize: vi.fn(async (foodId, name, weightInGrams) => {
+    const createdServingSize = {
+      id: nextServingSizeId++,
+      food_id: foodId,
+      name,
+      weight_in_grams: weightInGrams,
+    };
+    mockServingSizes.push(createdServingSize);
+    return createdServingSize.id;
+  }),
+  deleteServingSizes: vi.fn(async (foodId) => {
+    mockServingSizes = mockServingSizes.filter((item) => item.food_id !== foodId);
+  }),
+  getServingSizes: vi.fn(async (foodId) =>
+    mockServingSizes.filter((item) => item.food_id === foodId)
+  ),
+  getLogsByDate: vi.fn(async (dateString) =>
+    mockLogs.filter((log) => toLocalSqlDate(log.logged_at) === dateString)
+  ),
+  deleteLog: vi.fn(async (id) => {
+    mockLogs = mockLogs.filter((log) => log.id !== id);
+  }),
+  getLogById: vi.fn(async (id) => {
+    const log = mockLogs.find((item) => item.id === id);
+    if (!log) return null;
+    const food = mockFoods.find((item) => item.id === log.food_id);
+    if (!food) return null;
+    return {
+      ...log,
+      calories_per_100g: food.calories_per_100g,
+      protein_per_100g: food.protein_per_100g,
+      carbs_per_100g: food.carbs_per_100g,
+      fats_per_100g: food.fats_per_100g,
+    };
+  }),
+  logFood: vi.fn(async (foodId, servingSizeId, amountLogged, hardcodedCalories, hardcodedProtein, hardcodedCarbs, hardcodedFats) => {
+    const food = mockFoods.find((item) => item.id === foodId);
+    const servingSize = servingSizeId
+      ? mockServingSizes.find((item) => item.id === servingSizeId)
+      : null;
+
+    const createdLog = {
+      id: nextLogId++,
+      food_id: foodId,
+      serving_size_id: servingSizeId,
+      serving_size_name: servingSize?.name ?? null,
+      amount_logged: amountLogged,
+      hardcoded_calories: hardcodedCalories,
+      hardcoded_protein: hardcodedProtein,
+      hardcoded_carbs: hardcodedCarbs,
+      hardcoded_fats: hardcodedFats,
+      logged_at: new Date().toISOString(),
+      name: food?.name ?? 'UNKNOWN FOOD',
+    };
+    mockLogs.push(createdLog);
+    return createdLog.id;
+  }),
+  updateLog: vi.fn(async (id, servingSizeId, amountLogged, hardcodedCalories, hardcodedProtein, hardcodedCarbs, hardcodedFats) => {
+    const servingSize = servingSizeId
+      ? mockServingSizes.find((item) => item.id === servingSizeId)
+      : null;
+
+    mockLogs = mockLogs.map((log) =>
+      log.id === id
+        ? {
+            ...log,
+            serving_size_id: servingSizeId,
+            serving_size_name: servingSize?.name ?? null,
+            amount_logged: amountLogged,
+            hardcoded_calories: hardcodedCalories,
+            hardcoded_protein: hardcodedProtein,
+            hardcoded_carbs: hardcodedCarbs,
+            hardcoded_fats: hardcodedFats,
+          }
+        : log
+    );
+  }),
   clearAllData: vi.fn(async () => {}),
   __resetMockDb: () => {
-    mockSettings.clear();
-    mockLogs = [];
+    resetMockState();
   },
   __setMockSetting: (key, value) => {
     mockSettings.set(key, value);
+  },
+  __setMockFoods: (foods) => {
+    mockFoods = foods;
+  },
+  __setMockServingSizes: (servingSizes) => {
+    mockServingSizes = servingSizes;
   },
   __setMockLogs: (logs) => {
     mockLogs = logs;

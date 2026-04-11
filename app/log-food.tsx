@@ -4,8 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { FlatList, useColorScheme } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getRandomToastMessage } from "../constants/unhinged-toast";
-import { Food, getAllFoods, getServingSizes, logFood, searchFoods } from "../db/dao";
-import { consumePendingCreatedLogFood } from "../src/log-food-session";
+import { Food, getAllFoods, getServingSizes, logFood, searchFoods } from "@/db/dao";
+import { consumePendingCreatedLogFood } from "@/src/log-food-session";
 
 type SelectedFoodEntry = {
   food: Food;

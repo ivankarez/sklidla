@@ -4,8 +4,8 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, useColorScheme } from 'react-native';
 import { getRandomLibraryToastMessage } from '../constants/unhinged-toast';
-import { addFood, addServingSize, deleteServingSizes, getServingSizes, getSetting, updateFood } from '../db/dao';
-import { setPendingCreatedLogFood } from '../src/log-food-session';
+import { addFood, addServingSize, deleteServingSizes, getServingSizes, getSetting, updateFood } from '@/db/dao';
+import { setPendingCreatedLogFood } from '@/src/log-food-session';
 import { processFoodNameAutofill } from '../utils/ai';
 
 export default function ManualEntryScreen() {

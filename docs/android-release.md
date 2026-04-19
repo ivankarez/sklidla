@@ -10,7 +10,7 @@ That means:
 
 ## Current release baseline
 
-- Android package: `com.sklidla.app`
+- Android package: `com.ivankarez.sklidla`
 - Expo app version: `expo.version` in `app.json`
 - Android version code: `expo.android.versionCode` in `app.json`
 - Native project: committed `android/`

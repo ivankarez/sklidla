@@ -19,7 +19,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.sklidla.app",
+      "package": "com.ivankarez.sklidla",
       "versionCode": 1
     },
     "web": {

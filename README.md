@@ -49,6 +49,21 @@ Sklidla is built around **local-first storage**:
 
 If you never turn on AI, Sklidla still works as a manual nutrition tracker.
 
+## Privacy policy for Google Play
+
+Sklidla includes a Markdown privacy policy at **`docs/privacy-policy.md`**.
+
+For Google Play submission:
+
+1. Use the public URL of that file in Google Play Console, for example the GitHub file page for `docs/privacy-policy.md`.
+2. If you prefer, you can also host that Markdown file through GitHub Pages or any other public domain.
+3. Keep the Play disclosures aligned with the app's actual behavior:
+   - camera access is used for meal and nutrition-label scanning
+   - food logs, food library data, settings, and goals stay local on-device
+   - API keys are stored with `expo-secure-store`
+   - AI scans may send image data directly to the user-selected provider (OpenRouter, OpenAI, or Gemini)
+   - there is no Sklidla project backend relaying those requests
+
 ## AI, but not in a creepy way
 
 AI is optional. When enabled, it helps with:

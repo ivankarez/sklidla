@@ -90,7 +90,10 @@ export default function CameraScreen() {
   if (!permission.granted) {
     return (
       <SafeAreaView className="flex-1 bg-black justify-center">
-        <Text className="font-mono text-center mb-5 text-white">WE NEED CAMERA ACCESS TO SCAN FOOD AND LABELS.</Text>
+        <Text className="font-mono text-center mb-4 text-white">WE NEED CAMERA ACCESS TO SCAN FOOD AND LABELS.</Text>
+        <Text className="font-mono text-center mb-5 mx-8 text-white">
+          IF YOU USE AI SCANS, THE CAPTURED IMAGE CAN GO STRAIGHT TO YOUR SELECTED AI PROVIDER.
+        </Text>
         <Pressable className="bg-white p-4 mx-10 items-center" onPress={requestPermission}>
           <Text className="font-mono font-black text-black">GRANT ACCESS</Text>
         </Pressable>

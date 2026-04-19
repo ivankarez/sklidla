@@ -1,4 +1,4 @@
-package com.sklidla.app
+package com.ivankarez.sklidla
 
 import android.app.Application
 import android.content.res.Configuration

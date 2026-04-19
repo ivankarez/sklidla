@@ -1,4 +1,4 @@
-package com.sklidla.app
+package com.ivankarez.sklidla
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

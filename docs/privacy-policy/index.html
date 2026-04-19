@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sklidla Privacy Policy</title>
+    <meta
+      name="description"
+      content="Privacy Policy for Sklidla, a local-first nutrition tracker with optional AI scanning."
+    />
+    <style>
+      :root {
+        color-scheme: light;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: #ffffff;
+        color: #000000;
+        font-family: ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+          "Courier New", monospace;
+        line-height: 1.6;
+      }
+
+      main {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 32px 20px 56px;
+      }
+
+      h1,
+      h2 {
+        margin: 0 0 16px;
+        line-height: 1.2;
+      }
+
+      h1 {
+        font-size: 2rem;
+      }
+
+      h2 {
+        font-size: 1.125rem;
+        margin-top: 32px;
+        padding-top: 12px;
+        border-top: 2px solid #000000;
+      }
+
+      p,
+      li {
+        font-size: 1rem;
+      }
+
+      ul {
+        margin: 12px 0 0 20px;
+        padding: 0;
+      }
+
+      .muted {
+        font-size: 0.875rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Sklidla Privacy Policy</h1>
+      <p class="muted">Last updated: 2026-04-19</p>
+
+      <p>
+        Sklidla is a local-first nutrition tracker. Most of your data stays on your device unless you deliberately use
+        an AI-powered feature.
+      </p>
+      <p>
+        This policy explains what the app stores locally, when scan images may leave the device, and what to tell
+        Google Play about camera and AI processing.
+      </p>
+
+      <h2>What Sklidla stores on your device</h2>
+      <p>
+        Food entries, meal logs, serving sizes, and most app settings are stored locally in SQLite on your device.
+      </p>
+      <p>API keys for supported AI providers are stored on-device with expo-secure-store instead of in the normal app database.</p>
+      <ul>
+        <li>Food library entries and serving sizes</li>
+        <li>Logged meals and saved macro totals</li>
+        <li>Macro goals and app preferences</li>
+        <li>Encrypted AI provider API keys</li>
+      </ul>
+
+      <h2>Camera and photos</h2>
+      <p>Sklidla requests camera access so you can scan meal photos and nutrition labels inside the app.</p>
+      <p>The app only uses camera access for the scan flows you start yourself.</p>
+      <ul>
+        <li>Meal photos for macro estimation</li>
+        <li>Nutrition label photos for OCR-style extraction</li>
+      </ul>
+
+      <h2>When images may leave your device</h2>
+      <p>
+        AI features are optional. If you do not enable them or do not use the scan/autofill flows, Sklidla does not
+        send your images to an AI provider.
+      </p>
+      <p>
+        When you use AI scanning or AI autofill, the relevant image or prompt data is sent directly from your device to
+        the provider you selected in Settings.
+      </p>
+      <p>Supported providers currently include OpenRouter, OpenAI, and Gemini. Those providers process requests under their own terms and privacy policies.</p>
+      <ul>
+        <li>There is no Sklidla project backend relaying scan images</li>
+        <li>Requests go straight from the app to the provider you choose</li>
+        <li>You control whether AI is enabled and which provider is used</li>
+      </ul>
+
+      <h2>Data sharing and retention</h2>
+      <p>Sklidla does not operate its own backend for food logs, settings, or API keys.</p>
+      <p>
+        Because AI requests go directly to third-party providers, retention and processing for those requests are
+        controlled by the provider you selected.
+      </p>
+      <ul>
+        <li>Local logs remain on your device unless you delete them</li>
+        <li>Deleting app data removes local SQLite data and stored keys from the device</li>
+        <li>Provider-side retention is governed by the provider you chose</li>
+      </ul>
+
+      <h2>Your choices and controls</h2>
+      <p>You can use Sklidla as a manual nutrition tracker without enabling AI.</p>
+      <p>You can disable AI, remove your API key, deny camera access, or delete all local data from Settings at any time.</p>
+      <ul>
+        <li>Turn AI features on or off</li>
+        <li>Choose your AI provider</li>
+        <li>Remove stored API keys</li>
+        <li>Delete all local app data</li>
+      </ul>
+    </main>
+  </body>
+</html>

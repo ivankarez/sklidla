@@ -16,12 +16,16 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@ai-sdk/google": "^3.0.64",
+    "@ai-sdk/openai": "^3.0.53",
     "@expo/vector-icons": "^15.0.3",
+    "@openrouter/ai-sdk-provider": "^2.8.0",
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.2.2",
     "@react-navigation/native-stack": "^7.14.10",
     "@tailwindcss/postcss": "^4.2.2",
+    "ai": "^6.0.168",
     "clsx": "^2.1.1",
     "expo": "~54.0.33",
     "expo-camera": "~17.0.10",

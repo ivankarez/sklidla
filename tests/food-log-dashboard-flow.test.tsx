@@ -176,7 +176,7 @@ describe('food creation and logging flow', () => {
     alertSpy.mockRestore();
   });
 
-  it('hides activities on the dashboard when the checkbox is off and shows them again when re-enabled', async () => {
+  it('shows optional dashboard modules by default and hides them when disabled', async () => {
     (dao as any).__setMockActivities([
       {
         id: 1,
@@ -186,30 +186,77 @@ describe('food creation and logging flow', () => {
         logged_at: new Date().toISOString(),
       },
     ]);
+    (dao as any).__setMockWaterLogs([
+      {
+        id: 1,
+        amount_ml: 250,
+        logged_at: new Date().toISOString(),
+      },
+    ]);
 
-    const hiddenRender = render(<Dashboard />);
-
-    await waitFor(() => {
-      expect(screen.queryByText('ACTIVITIES')).toBeNull();
-      expect(screen.queryByTestId('open-activity-dialog')).toBeNull();
-      expect(screen.queryByText('walking')).toBeNull();
-      expect(screen.getByText('REMAINING: 2000 KCAL')).toBeTruthy();
-    });
-
-    hiddenRender.unmount();
-
-    await dao.saveActivityCalorieSettings({
-      enabled: true,
-      inclusionMode: 'all',
-    });
-
-    render(<Dashboard />);
+    const defaultRender = render(<Dashboard />);
 
     await waitFor(() => {
       expect(screen.getByText('ACTIVITIES')).toBeTruthy();
       expect(screen.getByTestId('open-activity-dialog')).toBeTruthy();
       expect(screen.getByText('walking')).toBeTruthy();
-      expect(screen.getByText('REMAINING: 2150 KCAL')).toBeTruthy();
+      expect(screen.getByText('WATER')).toBeTruthy();
+      expect(screen.getByText('250ML')).toBeTruthy();
+      expect(screen.getByText('REMAINING: 2075 KCAL')).toBeTruthy();
+    });
+
+    defaultRender.unmount();
+
+    await dao.saveActivityCalorieSettings({
+      enabled: false,
+      inclusionMode: 'all',
+    });
+    await (dao as any).saveWaterTrackingSettings({
+      enabled: false,
+      stepAmountMl: 250,
+    });
+
+    render(<Dashboard />);
+
+    await waitFor(() => {
+      expect(screen.queryByText('ACTIVITIES')).toBeNull();
+      expect(screen.queryByTestId('open-activity-dialog')).toBeNull();
+      expect(screen.queryByText('walking')).toBeNull();
+      expect(screen.queryByText('WATER')).toBeNull();
+      expect(screen.queryByTestId('increase-water-intake')).toBeNull();
+      expect(screen.getByText('REMAINING: 2000 KCAL')).toBeTruthy();
+    });
+  });
+
+  it('shows water tracking above activities and adjusts the daily total by the configured step', async () => {
+    await dao.saveActivityCalorieSettings({
+      enabled: true,
+      inclusionMode: 'all',
+    });
+    await (dao as any).saveWaterTrackingSettings({
+      enabled: true,
+      stepAmountMl: 300,
+    });
+
+    render(<Dashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByText('WATER')).toBeTruthy();
+      expect(screen.getByText('STEP: 300ML')).toBeTruthy();
+      expect(screen.getByText('0ML')).toBeTruthy();
+      expect(screen.getByText('ACTIVITIES')).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByTestId('increase-water-intake'));
+
+    await waitFor(() => {
+      expect(screen.getByText('300ML')).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByTestId('decrease-water-intake'));
+
+    await waitFor(() => {
+      expect(screen.getByText('0ML')).toBeTruthy();
     });
   });
 });

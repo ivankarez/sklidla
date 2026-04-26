@@ -30,6 +30,7 @@ Sklidla is trying a different approach:
 ## What it does today
 
 - **Dashboard / ledger:** big calorie count, macro progress bars, daily history
+- **Water tracking:** optional dashboard water counter with configurable +/- step sizes
 - **Activity logging:** add walking, running, cycling, or other activities and optionally count 0%, 50%, or 100% of burned calories toward your daily target
 - **Food library:** search foods, edit foods, add foods manually
 - **Serving sizes:** store units like slices, scoops, cups, pieces
@@ -44,7 +45,7 @@ Sklidla is trying a different approach:
 
 Sklidla is built around **local-first storage**:
 
-- food data, activity logs, settings, and nutrition logs are stored in **SQLite**
+- food data, water logs, activity logs, settings, and nutrition logs are stored in **SQLite**
 - API keys are stored in **`expo-secure-store`**
 - there is **no project backend**
 - AI calls go straight from your device to the provider you choose
@@ -61,7 +62,7 @@ For Google Play submission:
 2. If you prefer, you can also host that Markdown file through GitHub Pages or any other public domain.
 3. Keep the Play disclosures aligned with the app's actual behavior:
    - camera access is used for meal and nutrition-label scanning
-   - food logs, food library data, settings, and goals stay local on-device
+   - food logs, water logs, food library data, settings, and goals stay local on-device
    - API keys are stored with `expo-secure-store`
    - AI scans may send image data directly to the user-selected provider (OpenRouter, OpenAI, or Gemini)
    - there is no Sklidla project backend relaying those requests

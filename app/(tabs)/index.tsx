@@ -5,6 +5,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   addActivity,
+  adjustWaterIntakeByDate,
   calculateEffectiveActivityCalories,
   deleteActivity,
   deleteLog,
@@ -12,11 +13,14 @@ import {
   getActivityCalorieSettings,
   getLogsByDate,
   getMacroGoals,
+  getWaterIntakeByDate,
+  getWaterTrackingSettings,
   updateActivity,
   type ActivityCalorieSettings,
   type ActivityEntry,
   type ActivityType,
   type LogEntry,
+  type WaterTrackingSettings,
 } from '@/db/dao';
 import { Animated } from '@/src/tw/animated';
 import { useSharedValue, withTiming, withDelay, Easing, useAnimatedStyle } from 'react-native-reanimated';
@@ -95,6 +99,11 @@ export default function Dashboard() {
     enabled: false,
     inclusionMode: 'half',
   });
+  const [waterTrackingSettings, setWaterTrackingSettings] = useState<WaterTrackingSettings>({
+    enabled: false,
+    stepAmountMl: 250,
+  });
+  const [waterIntakeMl, setWaterIntakeMl] = useState(0);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isToastMounted, setIsToastMounted] = useState(false);
@@ -105,11 +114,13 @@ export default function Dashboard() {
   const [activityDuration, setActivityDuration] = useState('');
   const [activityCalories, setActivityCalories] = useState('');
   const [isSavingActivity, setIsSavingActivity] = useState(false);
+  const [isSavingWater, setIsSavingWater] = useState(false);
   const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ toastMessage?: string }>();
   const iconColor = colorScheme === 'dark' ? 'white' : 'black';
   const isActivitiesVisible = activitySettings.enabled;
+  const isWaterTrackingVisible = waterTrackingSettings.enabled;
   const activityAddButtonBg = colorScheme === 'dark' ? '#FFFFFF' : '#000000';
   const activityAddButtonFg = colorScheme === 'dark' ? '#000000' : '#FFFFFF';
   const toastOpacity = useSharedValue(0);
@@ -126,16 +137,27 @@ export default function Dashboard() {
 
   const loadData = useCallback(async (date: Date) => {
     const sqlDate = getSqlDate(date);
-    const [dayLogs, dayActivities, macroGoals, nextActivitySettings] = await Promise.all([
+    const [
+      dayLogs,
+      dayActivities,
+      macroGoals,
+      nextActivitySettings,
+      nextWaterTrackingSettings,
+      nextWaterIntakeMl,
+    ] = await Promise.all([
       getLogsByDate(sqlDate),
       getActivitiesByDate(sqlDate),
       getMacroGoals(),
       getActivityCalorieSettings(),
+      getWaterTrackingSettings(),
+      getWaterIntakeByDate(sqlDate),
     ]);
 
     setLogs(dayLogs);
     setActivities(dayActivities);
     setActivitySettings(nextActivitySettings);
+    setWaterTrackingSettings(nextWaterTrackingSettings);
+    setWaterIntakeMl(nextWaterIntakeMl);
 
     const cal = Number.parseInt(macroGoals.calories, 10);
     const pro = Number.parseInt(macroGoals.protein, 10);
@@ -312,6 +334,34 @@ export default function Dashboard() {
     return localDateTime.toISOString();
   }, []);
 
+  const handleAdjustWater = useCallback(async (direction: 1 | -1) => {
+    if (!isWaterTrackingVisible || isSavingWater) {
+      return;
+    }
+
+    setIsSavingWater(true);
+
+    try {
+      const nextTotal = await adjustWaterIntakeByDate(
+        getSqlDate(currentDate),
+        direction * waterTrackingSettings.stepAmountMl,
+        buildLoggedAtForSelectedDate(currentDate)
+      );
+      setWaterIntakeMl(nextTotal);
+    } catch (error) {
+      console.error('Failed to update water intake', error);
+      Alert.alert('ERROR', 'COULD NOT UPDATE WATER RIGHT NOW.');
+    } finally {
+      setIsSavingWater(false);
+    }
+  }, [
+    buildLoggedAtForSelectedDate,
+    currentDate,
+    isSavingWater,
+    isWaterTrackingVisible,
+    waterTrackingSettings.stepAmountMl,
+  ]);
+
   const handleSaveActivity = useCallback(async () => {
     const durationMinutes = Number.parseFloat(activityDuration);
     const caloriesBurned = Number.parseFloat(activityCalories);
@@ -478,6 +528,53 @@ export default function Dashboard() {
             delay={500} 
           />
         </View>
+
+        {isWaterTrackingVisible ? (
+          <View className="mt-2 mb-8">
+            <View className="flex-row items-center justify-between mb-4 gap-3">
+              <View className="flex-1 flex-row items-center">
+                <Text className="font-mono text-2xl font-black text-black bg-white pr-2 z-10">
+                  WATER
+                </Text>
+                <View className="flex-1 h-1 bg-black -ml-2" />
+              </View>
+              <View className="flex-row items-center gap-2">
+                <Pressable
+                  testID="decrease-water-intake"
+                  onPress={() => handleAdjustWater(-1)}
+                  disabled={isSavingWater || waterIntakeMl === 0}
+                  className="bg-white border-2 border-black px-3 py-2"
+                  style={{ opacity: isSavingWater || waterIntakeMl === 0 ? 0.45 : 1 }}
+                >
+                  <MaterialIcons name="remove" size={18} color={iconColor} />
+                </Pressable>
+                <Pressable
+                  testID="increase-water-intake"
+                  onPress={() => handleAdjustWater(1)}
+                  disabled={isSavingWater}
+                  className="bg-white border-2 border-black px-3 py-2"
+                  style={{ opacity: isSavingWater ? 0.45 : 1 }}
+                >
+                  <MaterialIcons name="add" size={18} color={iconColor} />
+                </Pressable>
+              </View>
+            </View>
+
+            <View className="border-4 border-black bg-white p-4 flex-row items-center justify-between gap-4">
+              <View className="flex-1">
+                <Text className="font-mono text-xs font-bold text-black mb-2">
+                  DAILY DRANK
+                </Text>
+                <Text className="font-mono text-sm font-bold text-black">
+                  STEP: {waterTrackingSettings.stepAmountMl}ML
+                </Text>
+              </View>
+              <Text className="font-mono text-4xl font-black text-black tracking-tighter">
+                {Math.round(waterIntakeMl)}ML
+              </Text>
+            </View>
+          </View>
+        ) : null}
 
         {isActivitiesVisible ? (
           <View className="mt-2 mb-10">

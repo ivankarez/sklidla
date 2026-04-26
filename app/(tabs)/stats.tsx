@@ -15,7 +15,7 @@ import {
   type NutritionAverages,
 } from '@/db/stats';
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Alert, useColorScheme } from 'react-native';
 import Svg, { Path, Rect, Text as SvgText } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -238,7 +238,6 @@ const formatChangeLabel = (change: number) => {
 
 export default function StatsScreen() {
   const isDark = useColorScheme() === 'dark';
-  const hasLoadedOnceRef = useRef(false);
   const [streak, setStreak] = useState(0);
   const [averages, setAverages] = useState<NutritionAverages>(EMPTY_AVERAGES);
   const [calorieGoalStatuses, setCalorieGoalStatuses] = useState<Last7DayCalorieGoalStatus[]>([]);
@@ -246,37 +245,44 @@ export default function StatsScreen() {
   const [selectedTimeframe, setSelectedTimeframe] = useState<WeightTimeframe>('30d');
   const [isLoading, setIsLoading] = useState(true);
 
-  const loadStats = useCallback(async () => {
-    if (!hasLoadedOnceRef.current) {
-      setIsLoading(true);
-    }
-
+  const loadStaticStats = useCallback(async () => {
+    setIsLoading(true);
     try {
-      const [nextStreak, nextAverages, nextCalorieGoalStatuses, nextWeightHistory] = await Promise.all([
+      const [nextStreak, nextAverages, nextCalorieGoalStatuses] = await Promise.all([
         getLoggingStreak(),
         getLast7DayNutritionAverages(),
         getLast7DayCalorieGoalStatuses(),
-        getWeightHistory(selectedTimeframe),
       ]);
 
       setStreak(nextStreak);
       setAverages(nextAverages);
       setCalorieGoalStatuses(nextCalorieGoalStatuses);
-      setWeightHistory(nextWeightHistory);
     } catch (error) {
       console.error('Failed to load statistics', error);
       Alert.alert('ERROR', 'FAILED TO LOAD STATS.');
     } finally {
-      hasLoadedOnceRef.current = true;
       setIsLoading(false);
+    }
+  }, []);
+
+  const loadWeightHistory = useCallback(async () => {
+    try {
+      const nextWeightHistory = await getWeightHistory(selectedTimeframe);
+      setWeightHistory(nextWeightHistory);
+    } catch (error) {
+      console.error('Failed to load weight history', error);
     }
   }, [selectedTimeframe]);
 
   useFocusEffect(
     useCallback(() => {
-      loadStats();
-    }, [loadStats])
+      loadStaticStats();
+    }, [loadStaticStats])
   );
+
+  useEffect(() => {
+    loadWeightHistory();
+  }, [loadWeightHistory]);
 
   if (isLoading) {
     return (

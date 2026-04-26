@@ -39,6 +39,91 @@ const toLocalSqlDate = (value) => {
   return `${year}-${month}-${day}`;
 };
 
+const shiftSqlDate = (dateString, deltaDays) => {
+  const shiftedDate = new Date(`${dateString}T12:00:00`);
+  shiftedDate.setDate(shiftedDate.getDate() + deltaDays);
+  return toLocalSqlDate(shiftedDate);
+};
+
+const getMockLoggingStreak = () => {
+  const loggedDates = new Set(mockLogs.map((log) => toLocalSqlDate(log.logged_at)));
+  const today = toLocalSqlDate(new Date());
+  const yesterday = shiftSqlDate(today, -1);
+
+  let cursor = today;
+  if (!loggedDates.has(today)) {
+    if (!loggedDates.has(yesterday)) {
+      return 0;
+    }
+
+    cursor = yesterday;
+  }
+
+  let streak = 0;
+  while (loggedDates.has(cursor)) {
+    streak += 1;
+    cursor = shiftSqlDate(cursor, -1);
+  }
+
+  return streak;
+};
+
+const getMockLast7DayNutritionAverages = () => {
+  const today = toLocalSqlDate(new Date());
+  const earliestDate = shiftSqlDate(today, -6);
+  const groupedDays = new Map();
+
+  mockLogs.forEach((log) => {
+    const loggedDate = toLocalSqlDate(log.logged_at);
+    if (loggedDate < earliestDate || loggedDate > today) {
+      return;
+    }
+
+    const currentDay = groupedDays.get(loggedDate) ?? {
+      averageCalories: 0,
+      averageProtein: 0,
+      averageCarbs: 0,
+      averageFats: 0,
+    };
+
+    groupedDays.set(loggedDate, {
+      averageCalories: currentDay.averageCalories + log.hardcoded_calories,
+      averageProtein: currentDay.averageProtein + log.hardcoded_protein,
+      averageCarbs: currentDay.averageCarbs + log.hardcoded_carbs,
+      averageFats: currentDay.averageFats + log.hardcoded_fats,
+    });
+  });
+
+  const loggedDays = Array.from(groupedDays.values());
+  if (loggedDays.length === 0) {
+    return {
+      averageCalories: 0,
+      averageProtein: 0,
+      averageCarbs: 0,
+      averageFats: 0,
+      daysLogged: 0,
+    };
+  }
+
+  const totals = loggedDays.reduce(
+    (acc, day) => ({
+      averageCalories: acc.averageCalories + day.averageCalories,
+      averageProtein: acc.averageProtein + day.averageProtein,
+      averageCarbs: acc.averageCarbs + day.averageCarbs,
+      averageFats: acc.averageFats + day.averageFats,
+    }),
+    { averageCalories: 0, averageProtein: 0, averageCarbs: 0, averageFats: 0 }
+  );
+
+  return {
+    averageCalories: totals.averageCalories / loggedDays.length,
+    averageProtein: totals.averageProtein / loggedDays.length,
+    averageCarbs: totals.averageCarbs / loggedDays.length,
+    averageFats: totals.averageFats / loggedDays.length,
+    daysLogged: loggedDays.length,
+  };
+};
+
 vi.mock('expo-router', () => {
   const Tabs = ({ children }) =>
     React.createElement(React.Fragment, null, children);
@@ -226,6 +311,8 @@ vi.mock('@/db/dao', () => ({
   getLogsByDate: vi.fn(async (dateString) =>
     mockLogs.filter((log) => toLocalSqlDate(log.logged_at) === dateString)
   ),
+  getLoggingStreak: vi.fn(async () => getMockLoggingStreak()),
+  getLast7DayNutritionAverages: vi.fn(async () => getMockLast7DayNutritionAverages()),
   deleteLog: vi.fn(async (id) => {
     mockLogs = mockLogs.filter((log) => log.id !== id);
   }),

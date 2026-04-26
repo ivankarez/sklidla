@@ -1,4 +1,10 @@
 import { getDb } from './database';
+import {
+  calculateLoggingStreak,
+  calculateNutritionAverages,
+  DailyNutritionTotals,
+  NutritionAverages,
+} from './stats';
 
 export const getSetting = async (key: string): Promise<string | null> => {
   const db = await getDb();
@@ -196,6 +202,49 @@ export const updateLog = async (
      WHERE id = ?`,
     [servingSizeId, amountLogged, hardcodedCalories, hardcodedProtein, hardcodedCarbs, hardcodedFats, id]
   );
+};
+
+export const getLoggingStreak = async (): Promise<number> => {
+  const db = await getDb();
+  const rows = await db.getAllAsync<{ logged_date: string }>(
+    `SELECT DISTINCT date(logged_at, 'localtime') AS logged_date
+     FROM logs
+     ORDER BY logged_date DESC`
+  );
+
+  return calculateLoggingStreak(rows.map((row) => row.logged_date));
+};
+
+export const getLast7DayNutritionAverages = async (): Promise<NutritionAverages> => {
+  const db = await getDb();
+  const rows = await db.getAllAsync<{
+    logged_date: string;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fats: number;
+  }>(
+    `SELECT
+       date(logged_at, 'localtime') AS logged_date,
+       SUM(hardcoded_calories) AS calories,
+       SUM(hardcoded_protein) AS protein,
+       SUM(hardcoded_carbs) AS carbs,
+       SUM(hardcoded_fats) AS fats
+     FROM logs
+     WHERE date(logged_at, 'localtime') BETWEEN date('now', 'localtime', '-6 days') AND date('now', 'localtime')
+     GROUP BY logged_date
+     ORDER BY logged_date DESC`
+  );
+
+  const dailyTotals: DailyNutritionTotals[] = rows.map((row) => ({
+    loggedDate: row.logged_date,
+    calories: row.calories,
+    protein: row.protein,
+    carbs: row.carbs,
+    fats: row.fats,
+  }));
+
+  return calculateNutritionAverages(dailyTotals);
 };
 
 export const clearAllData = async (): Promise<void> => {

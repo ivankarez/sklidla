@@ -273,12 +273,21 @@ vi.mock('@expo/vector-icons', async () => {
 });
 
 vi.mock('react-native-svg', async () => {
-  const createSvgComponent = (displayName) => {
-    const Component = ({ children, ...props }) => {
-      const { onPress, ...restProps } = props;
+  const SVG_TAG_MAP: Record<string, string> = {
+    Svg: 'svg',
+    Circle: 'circle',
+    Line: 'line',
+    Path: 'path',
+    Rect: 'rect',
+    SvgText: 'text',
+  };
+
+  const createSvgComponent = (displayName: string) => {
+    const tag = SVG_TAG_MAP[displayName] ?? 'svg';
+    const Component = ({ children, onPress, ...props }) => {
       return React.createElement(
-        'div',
-        { ...restProps, onClick: onPress, 'aria-label': displayName },
+        tag,
+        { ...props, onClick: onPress, 'aria-label': displayName },
         children
       );
     };

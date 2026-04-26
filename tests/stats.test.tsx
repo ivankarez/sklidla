@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as dao from '@/db/dao';
 import {
+  buildLast7DayCalorieGoalStatuses,
   buildSvgLinePath,
   buildWeightChartPoints,
   calculateLoggingStreak,
@@ -86,9 +87,78 @@ describe('statistics helpers', () => {
     expect(chartPoints[0].y).toBeLessThan(chartPoints[2].y);
     expect(buildSvgLinePath(chartPoints)).toMatch(/^M /);
   });
+
+  it('classifies each of the last 7 days as no_logs, met, or over', () => {
+    const referenceDate = new Date('2026-04-25T12:00:00');
+    const calorieGoal = 2000;
+
+    const statuses = buildLast7DayCalorieGoalStatuses(
+      [
+        { loggedDate: '2026-04-25', calories: 1800 },
+        { loggedDate: '2026-04-24', calories: 2100 },
+        { loggedDate: '2026-04-22', calories: 1950 },
+      ],
+      calorieGoal,
+      referenceDate
+    );
+
+    expect(statuses).toHaveLength(7);
+    expect(statuses[0].loggedDate).toBe('2026-04-19');
+    expect(statuses[6].loggedDate).toBe('2026-04-25');
+    expect(statuses[0].status).toBe('no_logs');
+    expect(statuses[1].status).toBe('no_logs');
+    expect(statuses[2].status).toBe('no_logs');
+    expect(statuses[3].status).toBe('met');
+    expect(statuses[4].status).toBe('no_logs');
+    expect(statuses[5].status).toBe('over');
+    expect(statuses[6].status).toBe('met');
+  });
+
+  it('marks a day as over when calories exactly exceed the goal', () => {
+    const referenceDate = new Date('2026-04-25T12:00:00');
+
+    const statuses = buildLast7DayCalorieGoalStatuses(
+      [{ loggedDate: '2026-04-25', calories: 2001 }],
+      2000,
+      referenceDate
+    );
+
+    const today = statuses.find((s) => s.loggedDate === '2026-04-25');
+    expect(today?.status).toBe('over');
+    expect(today?.calories).toBe(2001);
+  });
+
+  it('marks a day as met when calories equal the goal', () => {
+    const referenceDate = new Date('2026-04-25T12:00:00');
+
+    const statuses = buildLast7DayCalorieGoalStatuses(
+      [{ loggedDate: '2026-04-25', calories: 2000 }],
+      2000,
+      referenceDate
+    );
+
+    const today = statuses.find((s) => s.loggedDate === '2026-04-25');
+    expect(today?.status).toBe('met');
+  });
+
+  it('returns no_logs with zero calories for days with no data', () => {
+    const referenceDate = new Date('2026-04-25T12:00:00');
+
+    const statuses = buildLast7DayCalorieGoalStatuses([], 2000, referenceDate);
+
+    expect(statuses).toHaveLength(7);
+    statuses.forEach((s) => {
+      expect(s.status).toBe('no_logs');
+      expect(s.calories).toBe(0);
+    });
+  });
 });
 
 describe('statistics screen', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   beforeEach(() => {
     (expoRouter as any).__resetRouterMock();
     (dao as any).__resetMockDb();

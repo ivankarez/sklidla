@@ -391,10 +391,10 @@ export default function LogFoodScreen() {
           <Pressable
             testID="save-meal-cta"
             className="items-center justify-center py-5"
-            style={{ backgroundColor: '#000000' }}
+            style={{ backgroundColor: theme.primaryButtonBg }}
             onPress={handleSaveAll}
           >
-            <Text className="font-mono text-xl font-black tracking-widest" style={{ color: '#FFFFFF' }}>
+            <Text className="font-mono text-xl font-black tracking-widest" style={{ color: theme.primaryButtonText }}>
               {saveCtaLabel}
             </Text>
           </Pressable>

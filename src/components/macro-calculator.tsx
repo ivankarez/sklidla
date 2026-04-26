@@ -2,6 +2,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import { Alert } from 'react-native';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/src/tw';
+import {
+  formatHeightInputFromMetricString,
+  formatWeightInputFromMetricString,
+  getHeightUnitLabel,
+  getWeightUnitLabel,
+  normalizeHeightInputToMetricString,
+  normalizeWeightInputToMetricString,
+  type MeasurementSystem,
+} from '@/utils/measurements';
 
 export interface MacroProfile {
   gender: string;
@@ -23,6 +32,7 @@ export interface MacroResult {
 
 interface MacroCalculatorProps {
   isDark: boolean;
+  measurementSystem: MeasurementSystem;
   initialProfile: MacroProfile;
   submitLabel?: string;
   loading?: boolean;
@@ -31,6 +41,7 @@ interface MacroCalculatorProps {
 
 export function MacroCalculator({
   isDark,
+  measurementSystem,
   initialProfile,
   submitLabel = 'DO THE MATH',
   loading = false,
@@ -38,8 +49,12 @@ export function MacroCalculator({
 }: MacroCalculatorProps) {
   const [gender, setGender] = useState(initialProfile.gender);
   const [age, setAge] = useState(initialProfile.age);
-  const [weight, setWeight] = useState(initialProfile.weight);
-  const [height, setHeight] = useState(initialProfile.height);
+  const [weight, setWeight] = useState(
+    formatWeightInputFromMetricString(initialProfile.weight, measurementSystem)
+  );
+  const [height, setHeight] = useState(
+    formatHeightInputFromMetricString(initialProfile.height, measurementSystem)
+  );
   const [activityLevel, setActivityLevel] = useState(initialProfile.activityLevel);
   const [goal, setGoal] = useState(initialProfile.goal);
   const [dietaryPreference, setDietaryPreference] = useState(initialProfile.dietaryPreference);
@@ -61,12 +76,12 @@ export function MacroCalculator({
   useEffect(() => {
     setGender(initialProfile.gender);
     setAge(initialProfile.age);
-    setWeight(initialProfile.weight);
-    setHeight(initialProfile.height);
+    setWeight(formatWeightInputFromMetricString(initialProfile.weight, measurementSystem));
+    setHeight(formatHeightInputFromMetricString(initialProfile.height, measurementSystem));
     setActivityLevel(initialProfile.activityLevel);
     setGoal(initialProfile.goal);
     setDietaryPreference(initialProfile.dietaryPreference);
-  }, [initialProfile]);
+  }, [initialProfile, measurementSystem]);
 
   const handleCalculate = async () => {
     if (!age || !weight || !height) {
@@ -74,8 +89,10 @@ export function MacroCalculator({
       return;
     }
     const a = parseInt(age, 10);
-    const w = parseFloat(weight);
-    const h = parseFloat(height);
+    const metricWeight = normalizeWeightInputToMetricString(weight, measurementSystem);
+    const metricHeight = normalizeHeightInputToMetricString(height, measurementSystem);
+    const w = parseFloat(metricWeight);
+    const h = parseFloat(metricHeight);
 
     if (isNaN(a) || isNaN(w) || isNaN(h)) {
       Alert.alert('THOSE NUMBERS LOOK OFF', 'USE NUMBERS ONLY.');
@@ -130,17 +147,28 @@ export function MacroCalculator({
 
     setIsSubmitting(true);
     try {
-      await onCalculated({
-        calories,
-        protein,
-        carbs,
-        fats,
-        profile: { gender, age, weight, height, activityLevel, goal, dietaryPreference },
-      });
+        await onCalculated({
+          calories,
+          protein,
+          carbs,
+          fats,
+          profile: {
+            gender,
+            age,
+            weight: metricWeight,
+            height: metricHeight,
+            activityLevel,
+            goal,
+            dietaryPreference,
+          },
+        });
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const weightUnitLabel = getWeightUnitLabel(measurementSystem);
+  const heightUnitLabel = getHeightUnitLabel(measurementSystem);
 
   return (
     <ScrollView contentContainerClassName="p-5 pb-10" keyboardShouldPersistTaps="handled">
@@ -212,26 +240,30 @@ export function MacroCalculator({
             />
           </View>
           <View className="flex-1 mx-1">
-            <Text className="font-mono text-xs font-bold mb-1" style={{ color: textColor }}>WEIGHT</Text>
+            <Text className="font-mono text-xs font-bold mb-1" style={{ color: textColor }}>
+              WEIGHT ({weightUnitLabel})
+            </Text>
             <TextInput
               className="font-mono border-2 p-3 text-center text-lg"
               style={{ borderColor, backgroundColor: inputBg, color: inputText }}
               value={weight}
               onChangeText={setWeight}
               keyboardType="numeric"
-              placeholder="KG"
+              placeholder={measurementSystem === 'metric' ? 'KG' : 'LB'}
               placeholderTextColor={inputPlaceholder}
             />
           </View>
           <View className="flex-1 ml-2">
-            <Text className="font-mono text-xs font-bold mb-1" style={{ color: textColor }}>HEIGHT</Text>
+            <Text className="font-mono text-xs font-bold mb-1" style={{ color: textColor }}>
+              HEIGHT ({heightUnitLabel})
+            </Text>
             <TextInput
               className="font-mono border-2 p-3 text-center text-lg"
               style={{ borderColor, backgroundColor: inputBg, color: inputText }}
               value={height}
               onChangeText={setHeight}
               keyboardType="numeric"
-              placeholder="CM"
+              placeholder={measurementSystem === 'metric' ? 'CM' : 'IN'}
               placeholderTextColor={inputPlaceholder}
             />
           </View>

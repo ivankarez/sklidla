@@ -440,6 +440,13 @@ vi.mock('@/db/dao', () => ({
   setSetting: vi.fn(async (key, value) => {
     mockSettings.set(key, value);
   }),
+  getMeasurementSystem: vi.fn(async () => {
+    const value = mockSettings.get('measurement_system');
+    return value === 'imperial' ? 'imperial' : 'metric';
+  }),
+  saveMeasurementSystem: vi.fn(async (system) => {
+    mockSettings.set('measurement_system', system);
+  }),
   getActivityCalorieSettings: vi.fn(async () => getMockActivityCalorieSettings()),
   saveActivityCalorieSettings: vi.fn(async (settings) => {
     mockSettings.set(

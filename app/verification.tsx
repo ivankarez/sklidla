@@ -2,7 +2,14 @@ import { Pressable, SafeAreaView, Text, TextInput, View } from '@/src/tw';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { getRandomToastMessage } from '../constants/unhinged-toast';
-import { getLogById, getServingSizes, logFood, updateLog } from '../db/dao';
+import { getLogById, getMeasurementSystem, getServingSizes, logFood, updateLog } from '../db/dao';
+import {
+  convertDisplayFoodWeightToGrams,
+  formatFoodWeightFromGrams,
+  getBaseFoodUnitGrams,
+  getFoodWeightUnitLabel,
+  type MeasurementSystem,
+} from '@/utils/measurements';
 
 export default function VerificationScreen() {
   const router = useRouter();
@@ -19,9 +26,18 @@ export default function VerificationScreen() {
   const [amount, setAmount] = useState(params.initialWeight as string || '100');
   const [servings, setServings] = useState<{ id: number; name: string; weight_in_grams: number }[]>([]);
   const [activeUnit, setActiveUnit] = useState<number | null>(null); // null = grams
+  const [measurementSystem, setMeasurementSystem] = useState<MeasurementSystem>('metric');
 
   useEffect(() => {
     async function loadData() {
+      const [dbServings, nextMeasurementSystem] = await Promise.all([
+        getServingSizes(foodId),
+        getMeasurementSystem(),
+      ]);
+
+      setServings(dbServings);
+      setMeasurementSystem(nextMeasurementSystem);
+
       if (logId) {
         const log = await getLogById(logId);
         if (log) {
@@ -30,20 +46,26 @@ export default function VerificationScreen() {
           setPro100(log.protein_per_100g);
           setCar100(log.carbs_per_100g);
           setFat100(log.fats_per_100g);
-          setAmount(log.amount_logged.toString());
           setActiveUnit(log.serving_size_id);
+
+          if (log.serving_size_id) {
+            setAmount(log.amount_logged.toString());
+          } else {
+            setAmount(formatFoodWeightFromGrams(log.amount_logged, nextMeasurementSystem));
+          }
         }
+      } else if (params.initialWeight) {
+        setAmount(
+          formatFoodWeightFromGrams(parseFloat(params.initialWeight as string) || 100, nextMeasurementSystem)
+        );
       }
-      
-      const dbServings = await getServingSizes(foodId);
-      setServings(dbServings);
     }
     if (foodId || logId) loadData();
-  }, [foodId, logId]);
+  }, [foodId, logId, params.initialWeight]);
 
   const currentMultiplier = activeUnit 
-    ? (servings.find(s => s.id === activeUnit)?.weight_in_grams || 100) / 100 
-    : 1 / 100;
+    ? (servings.find(s => s.id === activeUnit)?.weight_in_grams || 100) / 100
+    : getBaseFoodUnitGrams(measurementSystem) / 100;
   const activeServing = activeUnit ? servings.find((s) => s.id === activeUnit) : null;
      
   const numericAmount = parseFloat(amount) || 0;
@@ -54,11 +76,16 @@ export default function VerificationScreen() {
   const currentFat = (fat100 * currentMultiplier * numericAmount).toFixed(1);
 
   const handleSave = async () => {
+    const amountLogged =
+      activeUnit === null
+        ? convertDisplayFoodWeightToGrams(numericAmount, measurementSystem)
+        : numericAmount;
+
     if (logId) {
       await updateLog(
         logId,
         activeUnit,
-        numericAmount,
+        amountLogged,
         parseFloat(currentCals),
         parseFloat(currentPro),
         parseFloat(currentCar),
@@ -68,7 +95,7 @@ export default function VerificationScreen() {
       await logFood(
         foodId,
         activeUnit,
-        numericAmount,
+        amountLogged,
         parseFloat(currentCals),
         parseFloat(currentPro),
         parseFloat(currentCar),
@@ -130,7 +157,7 @@ export default function VerificationScreen() {
           />
         </View>
         <Text className="font-mono text-xs font-bold text-black mb-8">
-          CURRENT UNIT: {activeServing ? activeServing.name.toUpperCase() : 'GRAMS'}
+          CURRENT UNIT: {activeServing ? activeServing.name.toUpperCase() : getFoodWeightUnitLabel(measurementSystem).toUpperCase()}
         </Text>
 
         <Text className="font-mono text-base font-black text-black mb-2">UNIT</Text>
@@ -139,7 +166,9 @@ export default function VerificationScreen() {
             className={`border-4 border-black py-3 px-4 ${activeUnit === null ? 'bg-black' : 'bg-white'}`}
             onPress={() => setActiveUnit(null)}
           >
-            <Text className={`font-mono text-sm font-black ${activeUnit === null ? 'text-white' : 'text-black'}`}>GRAMS</Text>
+            <Text className={`font-mono text-sm font-black ${activeUnit === null ? 'text-white' : 'text-black'}`}>
+              {getFoodWeightUnitLabel(measurementSystem).toUpperCase()}
+            </Text>
           </Pressable>
           {servings.map(s => (
             <Pressable 

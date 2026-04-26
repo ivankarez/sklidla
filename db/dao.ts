@@ -11,6 +11,12 @@ import {
   WeightHistoryPoint,
   WeightTimeframe,
 } from './stats';
+import {
+  DEFAULT_MEASUREMENT_SYSTEM,
+  isMeasurementSystem,
+  MEASUREMENT_SYSTEM_SETTING_KEY,
+  type MeasurementSystem,
+} from '@/utils/measurements';
 
 export const getSetting = async (key: string): Promise<string | null> => {
   const db = await getDb();
@@ -185,6 +191,15 @@ export const getUserProfile = async (): Promise<UserProfile> => {
     goal: goal ?? DEFAULT_USER_PROFILE.goal,
     dietaryPreference: dietaryPreference ?? DEFAULT_USER_PROFILE.dietaryPreference,
   };
+};
+
+export const getMeasurementSystem = async (): Promise<MeasurementSystem> => {
+  const value = await getSetting(MEASUREMENT_SYSTEM_SETTING_KEY);
+  return isMeasurementSystem(value) ? value : DEFAULT_MEASUREMENT_SYSTEM;
+};
+
+export const saveMeasurementSystem = async (system: MeasurementSystem): Promise<void> => {
+  await setSetting(MEASUREMENT_SYSTEM_SETTING_KEY, system);
 };
 
 export const saveUserProfile = async (

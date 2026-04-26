@@ -13,6 +13,7 @@ import {
   getActivityCalorieSettings,
   getLogsByDate,
   getMacroGoals,
+  getMeasurementSystem,
   getWaterIntakeByDate,
   getWaterTrackingSettings,
   updateActivity,
@@ -27,6 +28,13 @@ import { useSharedValue, withTiming, withDelay, Easing, useAnimatedStyle } from 
 import { MaterialIcons } from '@expo/vector-icons';
 import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { getRandomLedgerEmptyMessage } from '@/constants/unhinged-toast';
+import {
+  formatFoodWeightFromGrams,
+  formatWaterAmountFromMilliliters,
+  getFoodWeightUnitLabel,
+  getWaterUnitLabel,
+  type MeasurementSystem,
+} from '@/utils/measurements';
 
 function AnimatedProgressBar({ percent, delay = 0, label, value }: { percent: number, delay?: number, label: string, value: string }) {
   const width = useSharedValue(0);
@@ -104,6 +112,7 @@ export default function Dashboard() {
     stepAmountMl: 250,
   });
   const [waterIntakeMl, setWaterIntakeMl] = useState(0);
+  const [measurementSystem, setMeasurementSystem] = useState<MeasurementSystem>('metric');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isToastMounted, setIsToastMounted] = useState(false);
@@ -144,6 +153,7 @@ export default function Dashboard() {
       nextActivitySettings,
       nextWaterTrackingSettings,
       nextWaterIntakeMl,
+      nextMeasurementSystem,
     ] = await Promise.all([
       getLogsByDate(sqlDate),
       getActivitiesByDate(sqlDate),
@@ -151,6 +161,7 @@ export default function Dashboard() {
       getActivityCalorieSettings(),
       getWaterTrackingSettings(),
       getWaterIntakeByDate(sqlDate),
+      getMeasurementSystem(),
     ]);
 
     setLogs(dayLogs);
@@ -158,6 +169,7 @@ export default function Dashboard() {
     setActivitySettings(nextActivitySettings);
     setWaterTrackingSettings(nextWaterTrackingSettings);
     setWaterIntakeMl(nextWaterIntakeMl);
+    setMeasurementSystem(nextMeasurementSystem);
 
     const cal = Number.parseInt(macroGoals.calories, 10);
     const pro = Number.parseInt(macroGoals.protein, 10);
@@ -475,9 +487,27 @@ export default function Dashboard() {
   };
 
   const formatAmountAndUnit = (log: LogEntry) => {
-    const unit = log.serving_size_id ? (log.serving_size_name || 'unit') : 'g';
-    return `${log.amount_logged} ${unit}`;
+    if (log.serving_size_id) {
+      const amount = Number.isInteger(log.amount_logged)
+        ? log.amount_logged.toString()
+        : log.amount_logged.toFixed(1);
+      return `${amount} ${log.serving_size_name || 'unit'}`;
+    }
+
+    return `${formatFoodWeightFromGrams(log.amount_logged, measurementSystem)} ${getFoodWeightUnitLabel(
+      measurementSystem
+    )}`;
   };
+
+  const waterUnitLabel = getWaterUnitLabel(measurementSystem);
+  const waterStepLabel = `${formatWaterAmountFromMilliliters(
+    waterTrackingSettings.stepAmountMl,
+    measurementSystem
+  )} ${waterUnitLabel}`;
+  const waterTotalLabel = `${formatWaterAmountFromMilliliters(
+    waterIntakeMl,
+    measurementSystem
+  )} ${waterUnitLabel}`;
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1 }}>
@@ -566,11 +596,11 @@ export default function Dashboard() {
                   DAILY DRANK
                 </Text>
                 <Text className="font-mono text-sm font-bold text-black">
-                  STEP: {waterTrackingSettings.stepAmountMl}ML
+                  STEP: {waterStepLabel}
                 </Text>
               </View>
               <Text className="font-mono text-4xl font-black text-black tracking-tighter">
-                {Math.round(waterIntakeMl)}ML
+                {waterTotalLabel}
               </Text>
             </View>
           </View>

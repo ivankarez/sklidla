@@ -3,7 +3,7 @@ import { Pressable, ScrollView, Text, TextInput, View } from '@/src/tw';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Appearance, Modal, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -11,16 +11,29 @@ import {
   clearAllData,
   getActivityCalorieSettings,
   getMacroGoals,
+  getMeasurementSystem,
   getSetting,
   getUserProfile,
   saveActivityCalorieSettings,
   saveMacroGoals,
+  saveMeasurementSystem,
   saveWaterTrackingSettings,
   saveUserProfile,
   setSetting,
   type ActivityCalorieInclusionMode,
   type WaterStepAmount,
 } from '../../db/dao';
+import {
+  formatHeightInputFromMetricString,
+  formatWaterAmountFromMilliliters,
+  formatWeightInputFromMetricString,
+  getHeightUnitLabel,
+  getWaterUnitLabel,
+  getWeightUnitLabel,
+  normalizeHeightInputToMetricString,
+  normalizeWeightInputToMetricString,
+  type MeasurementSystem,
+} from '@/utils/measurements';
 
 const AI_PROVIDERS = ['OpenRouter', 'OpenAI', 'Gemini'] as const;
 type AiProviderName = typeof AI_PROVIDERS[number];
@@ -36,11 +49,7 @@ const ACTIVITY_CALORIE_INCLUSION_OPTIONS: {
   { id: 'all', label: 'INCLUDE ALL' },
 ];
 
-const WATER_STEP_OPTIONS: { id: WaterStepAmount; label: string }[] = [
-  { id: 100, label: '100 ML' },
-  { id: 250, label: '250 ML' },
-  { id: 300, label: '300 ML' },
-];
+const WATER_STEP_OPTIONS: WaterStepAmount[] = [100, 250, 300];
 
 export default function SettingsScreen() {
   const [aiEnabled, setAiEnabled] = useState(true);
@@ -66,6 +75,8 @@ export default function SettingsScreen() {
 
   // Theme State
   const [themePreference, setThemePreference] = useState('system');
+  const [measurementSystem, setMeasurementSystem] = useState<MeasurementSystem>('metric');
+  const previousMeasurementSystemRef = useRef<MeasurementSystem>('metric');
 
   // Calculator State
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
@@ -99,12 +110,13 @@ export default function SettingsScreen() {
           else if (storedAi) setApiKey(storedAi);
         }
 
-        const [macroGoals, profile, activityCalorieSettings, waterTrackingSettings] =
+        const [macroGoals, profile, activityCalorieSettings, waterTrackingSettings, nextMeasurementSystem] =
           await Promise.all([
           getMacroGoals(),
           getUserProfile(),
           getActivityCalorieSettings(),
           getWaterTrackingSettings(),
+          getMeasurementSystem(),
         ]);
 
         setGoalCalories(macroGoals.calories);
@@ -115,11 +127,13 @@ export default function SettingsScreen() {
         setActivityCalorieInclusionMode(activityCalorieSettings.inclusionMode);
         setWaterTrackingEnabled(waterTrackingSettings.enabled);
         setWaterStepAmountMl(waterTrackingSettings.stepAmountMl);
+        previousMeasurementSystemRef.current = nextMeasurementSystem;
+        setMeasurementSystem(nextMeasurementSystem);
 
         setGender(profile.gender);
         setAge(profile.age);
-        setWeight(profile.weight);
-        setHeight(profile.height);
+        setWeight(formatWeightInputFromMetricString(profile.weight, nextMeasurementSystem));
+        setHeight(formatHeightInputFromMetricString(profile.height, nextMeasurementSystem));
         setActivityLevel(profile.activityLevel);
         setGoal(profile.goal);
         setDietaryPreference(profile.dietaryPreference);
@@ -135,12 +149,48 @@ export default function SettingsScreen() {
     loadSettings();
   }, []);
 
+  useEffect(() => {
+    if (isLoading) {
+      previousMeasurementSystemRef.current = measurementSystem;
+      return;
+    }
+
+    const previousMeasurementSystem = previousMeasurementSystemRef.current;
+    if (previousMeasurementSystem === measurementSystem) {
+      return;
+    }
+
+    setWeight((currentWeight) =>
+      formatWeightInputFromMetricString(
+        normalizeWeightInputToMetricString(currentWeight, previousMeasurementSystem),
+        measurementSystem
+      )
+    );
+    setHeight((currentHeight) =>
+      formatHeightInputFromMetricString(
+        normalizeHeightInputToMetricString(currentHeight, previousMeasurementSystem),
+        measurementSystem
+      )
+    );
+    previousMeasurementSystemRef.current = measurementSystem;
+  }, [isLoading, measurementSystem]);
+
   // Auto-save effect
   useEffect(() => {
     if (isLoading) return;
 
     const timer = setTimeout(async () => {
       try {
+        const metricProfile = {
+          gender,
+          age,
+          weight: normalizeWeightInputToMetricString(weight, measurementSystem),
+          height: normalizeHeightInputToMetricString(height, measurementSystem),
+          activityLevel,
+          goal,
+          dietaryPreference,
+        };
+
         await setSetting('ai_enabled', aiEnabled ? 'true' : 'false');
         await setSetting('ai_provider', aiProvider);
         await SecureStore.setItemAsync('apiKey', apiKey);
@@ -160,18 +210,8 @@ export default function SettingsScreen() {
             enabled: waterTrackingEnabled,
             stepAmountMl: waterStepAmountMl,
           }),
-          saveUserProfile(
-            {
-              gender,
-              age,
-              weight,
-              height,
-              activityLevel,
-              goal,
-              dietaryPreference,
-            },
-            { recordWeightHistory: true }
-          ),
+          saveUserProfile(metricProfile, { recordWeightHistory: true }),
+          saveMeasurementSystem(measurementSystem),
         ]);
 
         await setSetting('theme_preference', themePreference);
@@ -181,7 +221,15 @@ export default function SettingsScreen() {
     }, 500); // 500ms debounce
 
     return () => clearTimeout(timer);
-  }, [aiEnabled, aiProvider, apiKey, goalCalories, goalProtein, goalCarbs, goalFats, activityCalorieAdjustmentsEnabled, activityCalorieInclusionMode, waterTrackingEnabled, waterStepAmountMl, gender, age, weight, height, activityLevel, goal, dietaryPreference, themePreference, isLoading]);
+  }, [aiEnabled, aiProvider, apiKey, goalCalories, goalProtein, goalCarbs, goalFats, activityCalorieAdjustmentsEnabled, activityCalorieInclusionMode, waterTrackingEnabled, waterStepAmountMl, gender, age, weight, height, activityLevel, goal, dietaryPreference, themePreference, measurementSystem, isLoading]);
+
+  const weightUnitLabel = getWeightUnitLabel(measurementSystem);
+  const heightUnitLabel = getHeightUnitLabel(measurementSystem);
+  const waterUnitLabel = getWaterUnitLabel(measurementSystem);
+  const waterStepOptions = WATER_STEP_OPTIONS.map((option) => ({
+    id: option,
+    label: `${formatWaterAmountFromMilliliters(option, measurementSystem)} ${waterUnitLabel}`,
+  }));
 
   if (isLoading) {
     return (
@@ -197,6 +245,35 @@ export default function SettingsScreen() {
         <Text className="font-mono text-xl font-black text-black">SETTINGS</Text>
       </View>
       <ScrollView contentContainerClassName="p-5 pb-10" keyboardShouldPersistTaps="handled">
+        <View className="mb-10">
+          <Text className="font-mono text-xl font-black text-black mb-1.5">UNITS</Text>
+          <View className="h-1 bg-black mb-5" />
+          <View className="flex-row">
+            {[
+              { id: 'metric', label: 'METRIC' },
+              { id: 'imperial', label: 'IMPERIAL' },
+            ].map((option, index) => (
+              <Pressable
+                key={option.id}
+                className={`flex-1 border-2 border-black p-3 items-center ${index === 0 ? 'mr-2' : ''} ${measurementSystem === option.id ? 'bg-black' : 'bg-white'}`}
+                onPress={() => setMeasurementSystem(option.id as MeasurementSystem)}
+              >
+                <Text
+                  className={`font-mono text-xs font-black ${
+                    measurementSystem === option.id ? 'text-white' : 'text-black'
+                  }`}
+                >
+                  {option.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text className="font-mono text-xs font-bold text-black mt-3 leading-4.5">
+            BODY STATS, FOOD WEIGHTS, AND WATER TRACKING FOLLOW THIS SWITCH. INTERNAL STORAGE
+            STAYS METRIC SO THE RECEIPTS DON&apos;T GET WEIRD.
+          </Text>
+        </View>
+
         <View className="mb-10">
           <Text className="font-mono text-xl font-black text-black mb-1.5">ABOUT ME</Text>
           <View className="h-1 bg-black mb-5" />
@@ -233,24 +310,28 @@ export default function SettingsScreen() {
               />
             </View>
             <View className="flex-1 mr-2.5 mb-5">
-              <Text className="font-mono text-sm font-bold text-black mb-2">WEIGHT (kg)</Text>
+              <Text className="font-mono text-sm font-bold text-black mb-2">
+                WEIGHT ({weightUnitLabel})
+              </Text>
               <TextInput
                 className="font-mono border-2 border-black bg-white p-4 text-base text-black"
                 value={weight}
                 onChangeText={setWeight}
                 keyboardType="numeric"
-                placeholder="80"
+                placeholder={measurementSystem === 'metric' ? '80' : '176'}
                 placeholderTextColor="#999"
               />
             </View>
             <View className="flex-1 mb-5">
-              <Text className="font-mono text-sm font-bold text-black mb-2">HEIGHT (cm)</Text>
+              <Text className="font-mono text-sm font-bold text-black mb-2">
+                HEIGHT ({heightUnitLabel})
+              </Text>
               <TextInput
                 className="font-mono border-2 border-black bg-white p-4 text-base text-black"
                 value={height}
                 onChangeText={setHeight}
                 keyboardType="numeric"
-                placeholder="180"
+                placeholder={measurementSystem === 'metric' ? '180' : '71'}
                 placeholderTextColor="#999"
               />
             </View>
@@ -471,7 +552,7 @@ export default function SettingsScreen() {
           <View style={{ opacity: waterTrackingEnabled ? 1 : 0.55 }}>
             <Text className="font-mono text-sm font-bold text-black mb-2">BUTTON STEP</Text>
             <View className="gap-2">
-              {WATER_STEP_OPTIONS.map((option) => (
+              {waterStepOptions.map((option) => (
                 <Pressable
                   key={option.id}
                   className={`border-2 border-black p-4 ${
@@ -593,11 +674,12 @@ export default function SettingsScreen() {
           
           <MacroCalculator
             isDark={isDark}
+            measurementSystem={measurementSystem}
             initialProfile={{
               gender,
               age,
-              weight,
-              height,
+              weight: normalizeWeightInputToMetricString(weight, measurementSystem),
+              height: normalizeHeightInputToMetricString(height, measurementSystem),
               activityLevel,
               goal,
               dietaryPreference,
@@ -609,8 +691,8 @@ export default function SettingsScreen() {
               setGoalFats(fats.toString());
               setGender(profile.gender);
               setAge(profile.age);
-              setWeight(profile.weight);
-              setHeight(profile.height);
+              setWeight(formatWeightInputFromMetricString(profile.weight, measurementSystem));
+              setHeight(formatHeightInputFromMetricString(profile.height, measurementSystem));
               setActivityLevel(profile.activityLevel);
               setGoal(profile.goal);
               setDietaryPreference(profile.dietaryPreference);

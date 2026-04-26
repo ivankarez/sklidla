@@ -6,8 +6,16 @@ import { FlatList, useColorScheme } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { getRandomLogMealCtaMessage, getRandomToastMessage } from "../constants/unhinged-toast";
-import { Food, getAllFoods, getServingSizes, logFood, searchFoods } from "@/db/dao";
+import { Food, getAllFoods, getMeasurementSystem, getServingSizes, logFood, searchFoods } from "@/db/dao";
 import { consumePendingCreatedLogFood } from "@/src/log-food-session";
+import {
+  formatFoodWeightFromGrams,
+  formatNutritionFromPer100g,
+  getBaseFoodUnitGrams,
+  getFoodWeightUnitLabel,
+  getMacroDensityLabel,
+  type MeasurementSystem,
+} from "@/utils/measurements";
 
 type SelectedFoodEntry = {
   food: Food;
@@ -69,6 +77,7 @@ export default function LogFoodScreen() {
   const [servingSizes, setServingSizes] = useState<{ id: number, name: string, weight_in_grams: number }[]>([]);
   const [amount, setAmount] = useState("100");
   const [selectedUnit, setSelectedUnit] = useState<{ name: string, weight: number, id: number | null }>({ name: 'grams', weight: 1, id: null });
+  const [measurementSystem, setMeasurementSystem] = useState<MeasurementSystem>("metric");
   const [saveCtaLabel, setSaveCtaLabel] = useState(() => getRandomLogMealCtaMessage());
   const saveCtaOpacity = useSharedValue(0);
   const saveCtaTranslateY = useSharedValue(24);
@@ -88,10 +97,14 @@ export default function LogFoodScreen() {
       setAmount("1");
       setSelectedUnit({ name: sizes[0].name, weight: sizes[0].weight_in_grams, id: sizes[0].id });
     } else {
-      setAmount("100");
-      setSelectedUnit({ name: 'grams', weight: 1, id: null });
+      setAmount(formatFoodWeightFromGrams(100, measurementSystem));
+      setSelectedUnit({
+        name: getFoodWeightUnitLabel(measurementSystem),
+        weight: getBaseFoodUnitGrams(measurementSystem),
+        id: null,
+      });
     }
-  }, []);
+  }, [measurementSystem]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -120,6 +133,9 @@ export default function LogFoodScreen() {
       async function syncLogFoodScreen() {
         const pendingCreatedFood = consumePendingCreatedLogFood();
         const nextQuery = pendingCreatedFood?.searchQuery ?? query;
+        const nextMeasurementSystem = await getMeasurementSystem();
+        if (!isActive) return;
+        setMeasurementSystem(nextMeasurementSystem);
 
         if (pendingCreatedFood?.searchQuery && pendingCreatedFood.searchQuery !== query) {
           setQuery(pendingCreatedFood.searchQuery);
@@ -173,6 +189,7 @@ export default function LogFoodScreen() {
     for (const item of selectedFoods) {
       const numericAmount = parseFloat(item.amount) || 0;
       const currentMultiplier = item.weight / 100;
+      const amountLogged = item.servingSizeId === null ? numericAmount * item.weight : numericAmount;
       
       const currentCals = item.food.calories_per_100g * currentMultiplier * numericAmount;
       const currentPro = item.food.protein_per_100g * currentMultiplier * numericAmount;
@@ -182,7 +199,7 @@ export default function LogFoodScreen() {
       await logFood(
         item.food.id,
         item.servingSizeId,
-        numericAmount,
+        amountLogged,
         currentCals,
         currentPro,
         currentCar,
@@ -288,18 +305,24 @@ export default function LogFoodScreen() {
                 </Pressable>
               ))}
               <Pressable
-                onPress={() => setSelectedUnit({ name: 'grams', weight: 1, id: null })}
+                onPress={() =>
+                  setSelectedUnit({
+                    name: getFoodWeightUnitLabel(measurementSystem),
+                    weight: getBaseFoodUnitGrams(measurementSystem),
+                    id: null,
+                  })
+                }
                 className="border-4 py-3 px-4"
                 style={{
                   borderColor: theme.border,
-                  backgroundColor: selectedUnit.name === "grams" ? theme.chipSelectedBg : theme.chipUnselectedBg,
+                  backgroundColor: selectedUnit.id === null ? theme.chipSelectedBg : theme.chipUnselectedBg,
                 }}
               >
                 <Text
                   className="font-mono text-base font-bold"
-                  style={{ color: selectedUnit.name === "grams" ? theme.chipSelectedText : theme.chipUnselectedText }}
+                  style={{ color: selectedUnit.id === null ? theme.chipSelectedText : theme.chipUnselectedText }}
                 >
-                  GRAMS
+                  {getFoodWeightUnitLabel(measurementSystem).toUpperCase()}
                 </Text>
               </Pressable>
             </View>
@@ -373,7 +396,7 @@ export default function LogFoodScreen() {
                   </View>
                   <View className="items-end">
                     <Text className="font-mono text-sm font-bold" style={{ color: theme.textPrimary }}>
-                      {item.calories_per_100g} kcal
+                      {formatNutritionFromPer100g(item.calories_per_100g, measurementSystem)} kcal / {getMacroDensityLabel(measurementSystem).toUpperCase()}
                     </Text>
                   </View>
                 </Pressable>

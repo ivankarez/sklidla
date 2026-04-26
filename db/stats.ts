@@ -22,6 +22,11 @@ export interface Last7DayCalorieGoalStatus {
   calories: number;
 }
 
+export interface DailyCalorieGoalAdjustment {
+  loggedDate: string;
+  adjustmentCalories: number;
+}
+
 export type WeightTimeframe = '30d' | '1y' | 'all';
 
 export interface WeightHistoryPoint {
@@ -132,9 +137,13 @@ export const calculateNutritionAverages = (
 export const buildLast7DayCalorieGoalStatuses = (
   days: Pick<DailyNutritionTotals, 'loggedDate' | 'calories'>[],
   calorieGoal: number,
-  referenceDate: Date = new Date()
+  referenceDate: Date = new Date(),
+  goalAdjustments: DailyCalorieGoalAdjustment[] = []
 ): Last7DayCalorieGoalStatus[] => {
   const totalsByDate = new Map(days.map((day) => [day.loggedDate, day.calories]));
+  const adjustmentsByDate = new Map(
+    goalAdjustments.map((day) => [day.loggedDate, day.adjustmentCalories])
+  );
   const today = getLocalSqlDate(referenceDate);
 
   return Array.from({ length: 7 }, (_, index) => {
@@ -151,7 +160,10 @@ export const buildLast7DayCalorieGoalStatuses = (
 
     return {
       loggedDate,
-      status: calories > calorieGoal ? ('over' as const) : ('met' as const),
+      status:
+        calories > calorieGoal + (adjustmentsByDate.get(loggedDate) ?? 0)
+          ? ('over' as const)
+          : ('met' as const),
       calories,
     };
   });

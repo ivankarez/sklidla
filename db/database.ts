@@ -58,7 +58,16 @@ export const initDb = async () => {
       logged_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS activities (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      activity_type TEXT NOT NULL,
+      duration_minutes REAL NOT NULL,
+      calories_burned REAL NOT NULL,
+      logged_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE INDEX IF NOT EXISTS idx_weight_logs_logged_at ON weight_logs (logged_at);
+    CREATE INDEX IF NOT EXISTS idx_activities_logged_at ON activities (logged_at);
   `);
 
   await database.runAsync(

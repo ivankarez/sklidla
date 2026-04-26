@@ -13,24 +13,28 @@ let localSearchParams = {};
 
 const mockSettings = new Map();
 let mockLogs = [];
+let mockActivities = [];
 let mockWeightLogs = [];
 let mockFoods = [];
 let mockServingSizes = [];
 let nextFoodId = 1;
 let nextServingSizeId = 1;
 let nextLogId = 1;
+let nextActivityId = 1;
 let nextWeightLogId = 1;
 let pendingCreatedLogFood = null;
 
 const resetMockState = () => {
   mockSettings.clear();
   mockLogs = [];
+  mockActivities = [];
   mockWeightLogs = [];
   mockFoods = [];
   mockServingSizes = [];
   nextFoodId = 1;
   nextServingSizeId = 1;
   nextLogId = 1;
+  nextActivityId = 1;
   nextWeightLogId = 1;
   pendingCreatedLogFood = null;
 };
@@ -133,6 +137,8 @@ const getMockLast7DayCalorieGoalStatuses = () => {
   const calorieGoal = Number.parseInt(mockSettings.get('goal_calories') ?? '2000', 10);
   const normalizedCalorieGoal = Number.isFinite(calorieGoal) ? calorieGoal : 2000;
   const dailyCalories = new Map();
+  const dailyActivityCalories = new Map();
+  const activitySettings = getMockActivityCalorieSettings();
 
   mockLogs.forEach((log) => {
     const loggedDate = toLocalSqlDate(log.logged_at);
@@ -140,9 +146,17 @@ const getMockLast7DayCalorieGoalStatuses = () => {
     dailyCalories.set(loggedDate, currentCalories + log.hardcoded_calories);
   });
 
+  mockActivities.forEach((activity) => {
+    const loggedDate = toLocalSqlDate(activity.logged_at);
+    const currentCalories = dailyActivityCalories.get(loggedDate) ?? 0;
+    dailyActivityCalories.set(loggedDate, currentCalories + activity.calories_burned);
+  });
+
   return Array.from({ length: 7 }, (_, index) => {
     const loggedDate = shiftSqlDate(today, index - 6);
     const calories = dailyCalories.get(loggedDate) ?? 0;
+    const activityCalories = dailyActivityCalories.get(loggedDate) ?? 0;
+    const goalAdjustment = getMockEffectiveActivityCalories(activityCalories, activitySettings);
 
     if (!dailyCalories.has(loggedDate)) {
       return { loggedDate, status: 'no_logs', calories: 0 };
@@ -150,10 +164,34 @@ const getMockLast7DayCalorieGoalStatuses = () => {
 
     return {
       loggedDate,
-      status: calories > normalizedCalorieGoal ? 'over' : 'met',
+      status: calories > normalizedCalorieGoal + goalAdjustment ? 'over' : 'met',
       calories,
     };
   });
+};
+
+const getMockActivityCalorieSettings = () => {
+  const inclusionMode = mockSettings.get('activity_calorie_inclusion_mode');
+  const normalizedInclusionMode =
+    inclusionMode === 'none' || inclusionMode === 'half' || inclusionMode === 'all'
+      ? inclusionMode
+      : 'half';
+
+  return {
+    enabled: (mockSettings.get('activity_calorie_adjustment_enabled') ?? 'false') === 'true',
+    inclusionMode: normalizedInclusionMode,
+  };
+};
+
+const getMockEffectiveActivityCalories = (caloriesBurned, settings) => {
+  if (!settings.enabled) {
+    return 0;
+  }
+
+  const multiplier =
+    settings.inclusionMode === 'all' ? 1 : settings.inclusionMode === 'half' ? 0.5 : 0;
+
+  return Number((caloriesBurned * multiplier).toFixed(2));
 };
 
 const getWeightRangeStartDate = (timeframe) => {
@@ -306,8 +344,13 @@ vi.mock('react-native-svg', async () => {
 });
 
 vi.mock('react-native-gesture-handler/ReanimatedSwipeable', () => ({
-  default: ({ children }) =>
-    React.createElement(React.Fragment, null, children),
+  default: ({ children, renderRightActions }) =>
+    React.createElement(
+      React.Fragment,
+      null,
+      children,
+      renderRightActions ? renderRightActions(null, null) : null
+    ),
 }));
 
 vi.mock('expo-haptics', () => ({
@@ -376,6 +419,17 @@ vi.mock('@/db/dao', () => ({
   setSetting: vi.fn(async (key, value) => {
     mockSettings.set(key, value);
   }),
+  getActivityCalorieSettings: vi.fn(async () => getMockActivityCalorieSettings()),
+  saveActivityCalorieSettings: vi.fn(async (settings) => {
+    mockSettings.set(
+      'activity_calorie_adjustment_enabled',
+      settings.enabled ? 'true' : 'false'
+    );
+    mockSettings.set('activity_calorie_inclusion_mode', settings.inclusionMode);
+  }),
+  calculateEffectiveActivityCalories: vi.fn((caloriesBurned, settings) =>
+    getMockEffectiveActivityCalories(caloriesBurned, settings)
+  ),
   getUserProfile: vi.fn(async () => ({
     gender: mockSettings.get('bio_gender') ?? 'nonbinary',
     age: mockSettings.get('bio_age') ?? '',
@@ -447,6 +501,35 @@ vi.mock('@/db/dao', () => ({
   }),
   getServingSizes: vi.fn(async (foodId) =>
     mockServingSizes.filter((item) => item.food_id === foodId)
+  ),
+  addActivity: vi.fn(async ({ activityType, durationMinutes, caloriesBurned, loggedAt }) => {
+    const createdActivity = {
+      id: nextActivityId++,
+      activity_type: activityType,
+      duration_minutes: durationMinutes,
+      calories_burned: caloriesBurned,
+      logged_at: loggedAt ?? new Date().toISOString(),
+    };
+    mockActivities.push(createdActivity);
+    return createdActivity.id;
+  }),
+  updateActivity: vi.fn(async (id, activityType, durationMinutes, caloriesBurned) => {
+    mockActivities = mockActivities.map((activity) =>
+      activity.id === id
+        ? {
+            ...activity,
+            activity_type: activityType,
+            duration_minutes: durationMinutes,
+            calories_burned: caloriesBurned,
+          }
+        : activity
+    );
+  }),
+  deleteActivity: vi.fn(async (id) => {
+    mockActivities = mockActivities.filter((activity) => activity.id !== id);
+  }),
+  getActivitiesByDate: vi.fn(async (dateString) =>
+    mockActivities.filter((activity) => toLocalSqlDate(activity.logged_at) === dateString)
   ),
   getLogsByDate: vi.fn(async (dateString) =>
     mockLogs.filter((log) => toLocalSqlDate(log.logged_at) === dateString)
@@ -528,6 +611,9 @@ vi.mock('@/db/dao', () => ({
   },
   __setMockLogs: (logs) => {
     mockLogs = logs;
+  },
+  __setMockActivities: (activities) => {
+    mockActivities = activities;
   },
   __setMockWeightLogs: (weightLogs) => {
     mockWeightLogs = weightLogs;

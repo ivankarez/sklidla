@@ -1,25 +1,37 @@
+import { MacroCalculator } from '@/src/components/macro-calculator';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/src/tw';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { useEffect, useState } from 'react';
-import { Alert, Modal, Appearance, useColorScheme } from 'react-native';
+import { Alert, Appearance, Modal, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   clearAllData,
+  getActivityCalorieSettings,
   getMacroGoals,
   getSetting,
   getUserProfile,
+  saveActivityCalorieSettings,
   saveMacroGoals,
   saveUserProfile,
   setSetting,
+  type ActivityCalorieInclusionMode,
 } from '../../db/dao';
-import { useRouter } from 'expo-router';
-import { MacroCalculator } from '@/src/components/macro-calculator';
 
 const AI_PROVIDERS = ['OpenRouter', 'OpenAI', 'Gemini'] as const;
 type AiProviderName = typeof AI_PROVIDERS[number];
 const isAiProviderName = (value: string): value is AiProviderName =>
   AI_PROVIDERS.some((provider) => provider === value);
+
+const ACTIVITY_CALORIE_INCLUSION_OPTIONS: {
+  id: ActivityCalorieInclusionMode;
+  label: string;
+}[] = [
+  { id: 'none', label: 'DO NOT INCLUDE' },
+  { id: 'half', label: 'INCLUDE 50%' },
+  { id: 'all', label: 'INCLUDE ALL' },
+];
 
 export default function SettingsScreen() {
   const [aiEnabled, setAiEnabled] = useState(true);
@@ -34,6 +46,9 @@ export default function SettingsScreen() {
   const [goalProtein, setGoalProtein] = useState('');
   const [goalCarbs, setGoalCarbs] = useState('');
   const [goalFats, setGoalFats] = useState('');
+  const [activityCalorieAdjustmentsEnabled, setActivityCalorieAdjustmentsEnabled] = useState(false);
+  const [activityCalorieInclusionMode, setActivityCalorieInclusionMode] =
+    useState<ActivityCalorieInclusionMode>('half');
   const [isLoading, setIsLoading] = useState(true);
 
   const [isProviderDropdownOpen, setIsProviderDropdownOpen] = useState(false);
@@ -73,15 +88,18 @@ export default function SettingsScreen() {
           else if (storedAi) setApiKey(storedAi);
         }
 
-        const [macroGoals, profile] = await Promise.all([
+        const [macroGoals, profile, activityCalorieSettings] = await Promise.all([
           getMacroGoals(),
           getUserProfile(),
+          getActivityCalorieSettings(),
         ]);
 
         setGoalCalories(macroGoals.calories);
         setGoalProtein(macroGoals.protein);
         setGoalCarbs(macroGoals.carbs);
         setGoalFats(macroGoals.fats);
+        setActivityCalorieAdjustmentsEnabled(activityCalorieSettings.enabled);
+        setActivityCalorieInclusionMode(activityCalorieSettings.inclusionMode);
 
         setGender(profile.gender);
         setAge(profile.age);
@@ -119,6 +137,10 @@ export default function SettingsScreen() {
             carbs: goalCarbs,
             fats: goalFats,
           }),
+          saveActivityCalorieSettings({
+            enabled: activityCalorieAdjustmentsEnabled,
+            inclusionMode: activityCalorieInclusionMode,
+          }),
           saveUserProfile(
             {
               gender,
@@ -140,7 +162,7 @@ export default function SettingsScreen() {
     }, 500); // 500ms debounce
 
     return () => clearTimeout(timer);
-  }, [aiEnabled, aiProvider, apiKey, goalCalories, goalProtein, goalCarbs, goalFats, gender, age, weight, height, activityLevel, goal, dietaryPreference, themePreference, isLoading]);
+  }, [aiEnabled, aiProvider, apiKey, goalCalories, goalProtein, goalCarbs, goalFats, activityCalorieAdjustmentsEnabled, activityCalorieInclusionMode, gender, age, weight, height, activityLevel, goal, dietaryPreference, themePreference, isLoading]);
 
   if (isLoading) {
     return (
@@ -343,6 +365,62 @@ export default function SettingsScreen() {
               </Text>
             </View>
           )}
+        </View>
+
+        <View className="mb-10">
+          <Text className="font-mono text-xl font-black text-black mb-1.5">ACTIVITY CALORIES</Text>
+          <View className="h-1 bg-black mb-5" />
+
+          <Pressable
+            className="flex-row items-center mb-5"
+            onPress={() =>
+              setActivityCalorieAdjustmentsEnabled(!activityCalorieAdjustmentsEnabled)
+            }
+          >
+            <View
+              className={`w-8 h-8 border-2 border-black mr-4 items-center justify-center ${
+                activityCalorieAdjustmentsEnabled ? 'bg-black' : 'bg-white'
+              }`}
+            >
+              {activityCalorieAdjustmentsEnabled ? (
+                <Ionicons
+                  name="checkmark"
+                  size={24}
+                  color={colorScheme === 'dark' ? 'black' : 'white'}
+                />
+              ) : null}
+            </View>
+            <Text className="font-mono text-base font-bold text-black">
+              SHOW ACTIVITIES
+            </Text>
+          </Pressable>
+
+          <View style={{ opacity: activityCalorieAdjustmentsEnabled ? 1 : 0.55 }}>
+            <Text className="font-mono text-sm font-bold text-black mb-2">HOW MUCH COUNTS</Text>
+            <View className="gap-2">
+              {ACTIVITY_CALORIE_INCLUSION_OPTIONS.map((option) => (
+                <Pressable
+                  key={option.id}
+                  className={`border-2 border-black p-4 ${
+                    activityCalorieInclusionMode === option.id ? 'bg-black' : 'bg-white'
+                  }`}
+                  onPress={() => setActivityCalorieInclusionMode(option.id)}
+                >
+                  <Text
+                    className={`font-mono text-sm font-black ${
+                      activityCalorieInclusionMode === option.id ? 'text-white' : 'text-black'
+                    }`}
+                  >
+                    {option.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text className="font-mono text-xs font-bold text-black mt-3 leading-4.5">
+              WHEN THIS IS ON, THE ACTIVITIES SECTION APPEARS ON THE DASHBOARD AND SKLIDLA
+              COUNTS 0%, 50%, OR 100% OF BURNED ACTIVITY CALORIES TOWARD YOUR DAILY TARGET.
+            </Text>
+          </View>
         </View>
 
         <View className="mb-10">

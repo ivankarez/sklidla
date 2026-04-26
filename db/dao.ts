@@ -4,6 +4,7 @@ import {
   calculateLoggingStreak,
   calculateNutritionAverages,
   buildLast7DayCalorieGoalStatuses,
+  DailyCalorieGoalAdjustment,
   DailyNutritionTotals,
   NutritionAverages,
   Last7DayCalorieGoalStatus,
@@ -45,6 +46,23 @@ export interface MacroGoals {
   fats: string;
 }
 
+export type ActivityType = 'walking' | 'running' | 'cycling' | 'other';
+
+export interface ActivityEntry {
+  id: number;
+  activity_type: ActivityType;
+  duration_minutes: number;
+  calories_burned: number;
+  logged_at: string;
+}
+
+export type ActivityCalorieInclusionMode = 'none' | 'half' | 'all';
+
+export interface ActivityCalorieSettings {
+  enabled: boolean;
+  inclusionMode: ActivityCalorieInclusionMode;
+}
+
 export interface SaveUserProfileOptions {
   recordWeightHistory?: boolean;
   recordedAt?: string;
@@ -74,6 +92,11 @@ const DEFAULT_MACRO_GOALS: MacroGoals = {
   fats: '65',
 };
 
+const DEFAULT_ACTIVITY_CALORIE_SETTINGS: ActivityCalorieSettings = {
+  enabled: false,
+  inclusionMode: 'half',
+};
+
 const PROFILE_SETTING_KEYS = {
   gender: 'bio_gender',
   age: 'bio_age',
@@ -83,6 +106,22 @@ const PROFILE_SETTING_KEYS = {
   goal: 'bio_goal',
   dietaryPreference: 'bio_diet',
 } as const;
+
+const ACTIVITY_CALORIE_SETTING_KEYS = {
+  enabled: 'activity_calorie_adjustment_enabled',
+  inclusionMode: 'activity_calorie_inclusion_mode',
+} as const;
+
+const ACTIVITY_CALORIE_INCLUSION_MULTIPLIERS: Record<ActivityCalorieInclusionMode, number> = {
+  none: 0,
+  half: 0.5,
+  all: 1,
+};
+
+const isActivityCalorieInclusionMode = (
+  value: string | null
+): value is ActivityCalorieInclusionMode =>
+  value === 'none' || value === 'half' || value === 'all';
 
 const normalizeWeightValue = (value: string): number | null => {
   const parsed = Number.parseFloat(value);
@@ -188,6 +227,43 @@ export const saveMacroGoals = async (goals: MacroGoals): Promise<void> => {
     setSetting('goal_carbs', goals.carbs || DEFAULT_MACRO_GOALS.carbs),
     setSetting('goal_fats', goals.fats || DEFAULT_MACRO_GOALS.fats),
   ]);
+};
+
+export const getActivityCalorieSettings = async (): Promise<ActivityCalorieSettings> => {
+  const [enabled, inclusionMode] = await Promise.all([
+    getSetting(ACTIVITY_CALORIE_SETTING_KEYS.enabled),
+    getSetting(ACTIVITY_CALORIE_SETTING_KEYS.inclusionMode),
+  ]);
+
+  return {
+    enabled:
+      enabled === null ? DEFAULT_ACTIVITY_CALORIE_SETTINGS.enabled : enabled === 'true',
+    inclusionMode: isActivityCalorieInclusionMode(inclusionMode)
+      ? inclusionMode
+      : DEFAULT_ACTIVITY_CALORIE_SETTINGS.inclusionMode,
+  };
+};
+
+export const saveActivityCalorieSettings = async (
+  settings: ActivityCalorieSettings
+): Promise<void> => {
+  await Promise.all([
+    setSetting(ACTIVITY_CALORIE_SETTING_KEYS.enabled, settings.enabled ? 'true' : 'false'),
+    setSetting(ACTIVITY_CALORIE_SETTING_KEYS.inclusionMode, settings.inclusionMode),
+  ]);
+};
+
+export const calculateEffectiveActivityCalories = (
+  caloriesBurned: number,
+  settings: ActivityCalorieSettings
+): number => {
+  if (!settings.enabled) {
+    return 0;
+  }
+
+  return Number(
+    (caloriesBurned * ACTIVITY_CALORIE_INCLUSION_MULTIPLIERS[settings.inclusionMode]).toFixed(2)
+  );
 };
 
 export const getWeightHistory = async (
@@ -337,6 +413,57 @@ export const logFood = async (
   return result.lastInsertRowId;
 };
 
+export const addActivity = async (activity: {
+  activityType: ActivityType;
+  durationMinutes: number;
+  caloriesBurned: number;
+  loggedAt?: string;
+}): Promise<number> => {
+  const db = await getDb();
+  const result = await db.runAsync(
+    `INSERT INTO activities (activity_type, duration_minutes, calories_burned, logged_at)
+     VALUES (?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP))`,
+    [
+      activity.activityType,
+      activity.durationMinutes,
+      activity.caloriesBurned,
+      activity.loggedAt ?? null,
+    ]
+  );
+  return result.lastInsertRowId;
+};
+
+export const getActivitiesByDate = async (dateString: string): Promise<ActivityEntry[]> => {
+  const db = await getDb();
+  return await db.getAllAsync<ActivityEntry>(
+    `SELECT id, activity_type, duration_minutes, calories_burned, logged_at
+     FROM activities
+     WHERE date(logged_at, 'localtime') = ?
+     ORDER BY logged_at DESC, id DESC`,
+    [dateString]
+  );
+};
+
+export const updateActivity = async (
+  id: number,
+  activityType: ActivityType,
+  durationMinutes: number,
+  caloriesBurned: number
+): Promise<void> => {
+  const db = await getDb();
+  await db.runAsync(
+    `UPDATE activities
+     SET activity_type = ?, duration_minutes = ?, calories_burned = ?
+     WHERE id = ?`,
+    [activityType, durationMinutes, caloriesBurned, id]
+  );
+};
+
+export const deleteActivity = async (id: number): Promise<void> => {
+  const db = await getDb();
+  await db.runAsync('DELETE FROM activities WHERE id = ?', [id]);
+};
+
 export interface LogEntry {
   id: number;
   food_id: number;
@@ -457,7 +584,7 @@ export const getLast7DayCalorieGoalStatuses = async (
   referenceDate: Date = new Date()
 ): Promise<Last7DayCalorieGoalStatus[]> => {
   const db = await getDb();
-  const [rows, macroGoals] = await Promise.all([
+  const [rows, activityRows, macroGoals, activitySettings] = await Promise.all([
     db.getAllAsync<{
       logged_date: string;
       calories: number;
@@ -471,13 +598,31 @@ export const getLast7DayCalorieGoalStatuses = async (
        ORDER BY logged_date DESC`,
       [referenceDate.toISOString(), referenceDate.toISOString()]
     ),
+    db.getAllAsync<{
+      logged_date: string;
+      calories_burned: number;
+    }>(
+      `SELECT
+         date(logged_at, 'localtime') AS logged_date,
+         SUM(calories_burned) AS calories_burned
+       FROM activities
+       WHERE date(logged_at, 'localtime') BETWEEN date(?, 'localtime', '-6 days') AND date(?, 'localtime')
+       GROUP BY logged_date
+       ORDER BY logged_date DESC`,
+      [referenceDate.toISOString(), referenceDate.toISOString()]
+    ),
     getMacroGoals(),
+    getActivityCalorieSettings(),
   ]);
 
   const calorieGoal = Number.parseInt(macroGoals.calories, 10);
   const normalizedCalorieGoal = Number.isFinite(calorieGoal)
     ? calorieGoal
     : Number.parseInt(DEFAULT_MACRO_GOALS.calories, 10);
+  const goalAdjustments: DailyCalorieGoalAdjustment[] = activityRows.map((row) => ({
+    loggedDate: row.logged_date,
+    adjustmentCalories: calculateEffectiveActivityCalories(row.calories_burned, activitySettings),
+  }));
 
   return buildLast7DayCalorieGoalStatuses(
     rows.map((row) => ({
@@ -485,7 +630,8 @@ export const getLast7DayCalorieGoalStatuses = async (
       calories: row.calories,
     })),
     normalizedCalorieGoal,
-    referenceDate
+    referenceDate,
+    goalAdjustments
   );
 };
 

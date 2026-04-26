@@ -45,6 +45,8 @@ describe('food creation and logging flow', () => {
       expect(screen.getByText('Chicken Breast')).toBeTruthy();
     });
 
+    expect(screen.queryByTestId('save-meal-cta')).toBeNull();
+
     const foodOption = screen.getAllByText('Chicken Breast')[0].closest('[tabindex="0"]');
     expect(foodOption).toBeTruthy();
     fireEvent.click(foodOption as Element);
@@ -59,7 +61,7 @@ describe('food creation and logging flow', () => {
       expect(screen.getAllByText('Chicken Breast').length).toBeGreaterThan(0);
     });
 
-    fireEvent.click(screen.getByText('[+] SAVE'));
+    fireEvent.click(screen.getByTestId('save-meal-cta'));
 
     await waitFor(() => {
       expect(router.replace).toHaveBeenCalledWith({

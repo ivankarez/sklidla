@@ -1,9 +1,11 @@
 import { Pressable, Text, TextInput, View } from "@/src/tw";
+import { Animated } from "@/src/tw/animated";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { FlatList, useColorScheme } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { getRandomToastMessage } from "../constants/unhinged-toast";
+import { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
+import { getRandomLogMealCtaMessage, getRandomToastMessage } from "../constants/unhinged-toast";
 import { Food, getAllFoods, getServingSizes, logFood, searchFoods } from "@/db/dao";
 import { consumePendingCreatedLogFood } from "@/src/log-food-session";
 
@@ -67,6 +69,10 @@ export default function LogFoodScreen() {
   const [servingSizes, setServingSizes] = useState<{ id: number, name: string, weight_in_grams: number }[]>([]);
   const [amount, setAmount] = useState("100");
   const [selectedUnit, setSelectedUnit] = useState<{ name: string, weight: number, id: number | null }>({ name: 'grams', weight: 1, id: null });
+  const [saveCtaLabel, setSaveCtaLabel] = useState(() => getRandomLogMealCtaMessage());
+  const saveCtaOpacity = useSharedValue(0);
+  const saveCtaTranslateY = useSharedValue(24);
+  const showSaveCta = !configuringFood && selectedFoods.length > 0;
 
   const loadFoods = useCallback(async (searchTerm: string = query) => {
     const trimmedQuery = searchTerm.trim();
@@ -93,6 +99,19 @@ export default function LogFoodScreen() {
     }, 300);
     return () => clearTimeout(timer);
   }, [loadFoods, query]);
+
+  useEffect(() => {
+    if (!showSaveCta) return;
+
+    setSaveCtaLabel(getRandomLogMealCtaMessage());
+    saveCtaOpacity.value = 0;
+    saveCtaTranslateY.value = 24;
+    saveCtaOpacity.value = withTiming(1, { duration: 180 });
+    saveCtaTranslateY.value = withTiming(0, {
+      duration: 220,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [saveCtaOpacity, saveCtaTranslateY, showSaveCta]);
 
   useFocusEffect(
     useCallback(() => {
@@ -176,6 +195,11 @@ export default function LogFoodScreen() {
     });
   };
 
+  const saveCtaAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: saveCtaOpacity.value,
+    transform: [{ translateY: saveCtaTranslateY.value }],
+  }));
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.screenBg }} edges={["top", "bottom", "left", "right"]}>
       <View className="flex-row items-center justify-between px-4 pb-4 border-b-4" style={{ borderColor: theme.border }}>
@@ -185,12 +209,7 @@ export default function LogFoodScreen() {
         <Text className="font-mono text-xl font-black" style={{ color: theme.textPrimary }}>
           LOG MEAL
         </Text>
-        <Pressable 
-          onPress={handleSaveAll} 
-          className="p-1.5"
-        >
-          <Text className="font-mono text-sm font-bold" style={{ color: theme.textPrimary }}>[+] SAVE</Text>
-        </Pressable>
+        <View style={{ width: 80 }} />
       </View>
 
       {/* Top section: Selected foods */}
@@ -312,7 +331,7 @@ export default function LogFoodScreen() {
               style={{ flex: 1 }}
               data={dbFoods}
               keyExtractor={(item) => item.id.toString()}
-              contentContainerStyle={{ paddingBottom: 20 }}
+              contentContainerStyle={{ paddingBottom: showSaveCta ? 112 : 20 }}
               keyboardShouldPersistTaps="handled"
                 ListEmptyComponent={
                   query.trim() ? (
@@ -363,6 +382,24 @@ export default function LogFoodScreen() {
           </>
         )}
       </View>
+
+      {showSaveCta && (
+        <Animated.View
+          className="absolute right-0 left-0 px-5 pb-5"
+          style={[{ bottom: 0 }, saveCtaAnimatedStyle]}
+        >
+          <Pressable
+            testID="save-meal-cta"
+            className="items-center justify-center py-5"
+            style={{ backgroundColor: '#000000' }}
+            onPress={handleSaveAll}
+          >
+            <Text className="font-mono text-xl font-black tracking-widest" style={{ color: '#FFFFFF' }}>
+              {saveCtaLabel}
+            </Text>
+          </Pressable>
+        </Animated.View>
+      )}
     </SafeAreaView>
   );
 }

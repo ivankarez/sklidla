@@ -1,5 +1,6 @@
 import { ScrollView, Text, View, Pressable } from '@/src/tw';
 import {
+  getLast7DayCalorieGoalStatuses,
   getLast7DayNutritionAverages,
   getLoggingStreak,
   getWeightHistory,
@@ -8,14 +9,15 @@ import {
   buildSvgLinePath,
   buildWeightChartPoints,
   summarizeWeightChange,
+  type Last7DayCalorieGoalStatus,
   type WeightHistoryPoint,
   type WeightTimeframe,
   type NutritionAverages,
 } from '@/db/stats';
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { Alert } from 'react-native';
-import Svg, { Circle, Line, Path } from 'react-native-svg';
+import { useCallback, useEffect, useState } from 'react';
+import { Alert, useColorScheme } from 'react-native';
+import Svg, { Path, Rect, Text as SvgText } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const EMPTY_AVERAGES: NutritionAverages = {
@@ -74,12 +76,45 @@ function TimeframeButton({
   );
 }
 
-function WeightChart({ points }: { points: WeightHistoryPoint[] }) {
+function StreakDayDot({ status }: { status: Last7DayCalorieGoalStatus['status'] }) {
+  const symbol = status === 'met' ? '\u2713' : status === 'over' ? 'X' : '';
+  const isFilled = status !== 'no_logs';
+
+  return (
+    <View
+      accessibilityLabel={`streak-day-${status}`}
+      className={`w-7 h-7 rounded-full border-2 border-black items-center justify-center ${
+        isFilled ? 'bg-black' : 'bg-white'
+      }`}
+    >
+      <Text className={`font-mono text-xs font-black ${isFilled ? 'text-white' : 'text-black'}`}>
+        {symbol}
+      </Text>
+    </View>
+  );
+}
+
+function WeightChart({ points, isDark }: { points: WeightHistoryPoint[]; isDark: boolean }) {
+  const chartSurfaceColor = isDark ? '#000000' : '#FFFFFF';
+  const chartBorderColor = isDark ? '#FFFFFF' : '#000000';
+  const chartTextColor = isDark ? '#FFFFFF' : '#000000';
+  const chartLineColor = isDark ? '#FFFFFF' : '#000000';
+  const [selectedPointIndex, setSelectedPointIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    setSelectedPointIndex(points.length > 0 ? points.length - 1 : null);
+  }, [points]);
+
   if (points.length === 0) {
     return (
-      <View className="border-4 border-black bg-white px-5 py-10 items-center">
-        <Text className="font-mono text-lg font-black text-black text-center">NO WEIGH-INS YET.</Text>
-        <Text className="font-mono text-xs font-bold text-black mt-3 text-center">
+      <View
+        className="border-4 px-5 py-10 items-center"
+        style={{ borderColor: chartBorderColor, backgroundColor: chartSurfaceColor }}
+      >
+        <Text className="font-mono text-lg font-black text-center" style={{ color: chartTextColor }}>
+          NO WEIGH-INS YET.
+        </Text>
+        <Text className="font-mono text-xs font-bold mt-3 text-center" style={{ color: chartTextColor }}>
           CHANGE YOUR WEIGHT IN SETTINGS AND THE GRAPH STARTS TELLING ON YOU.
         </Text>
       </View>
@@ -91,39 +126,74 @@ function WeightChart({ points }: { points: WeightHistoryPoint[] }) {
   const weights = points.map((point) => point.weight);
   const minWeight = Math.min(...weights);
   const maxWeight = Math.max(...weights);
+  const selectedPoint = selectedPointIndex !== null ? chartPoints[selectedPointIndex] : null;
+  const selectedWeight = selectedPointIndex !== null ? points[selectedPointIndex]?.weight : null;
+  const tooltipLabel = selectedWeight !== null ? `${formatWeight(selectedWeight)} KG` : null;
+  const tooltipWidth = tooltipLabel ? Math.max(72, tooltipLabel.length * 7 + 18) : 0;
+  const tooltipX =
+    selectedPoint && tooltipLabel
+      ? Math.min(Math.max(selectedPoint.x - tooltipWidth / 2, 8), CHART_WIDTH - tooltipWidth - 8)
+      : 0;
+  const tooltipY = selectedPoint ? Math.max(selectedPoint.y - 34, 8) : 0;
 
   return (
-    <View className="border-4 border-black bg-white p-4">
+    <View
+      className="border-4 p-4"
+      style={{ borderColor: chartBorderColor, backgroundColor: chartSurfaceColor }}
+    >
       <View className="flex-row justify-between items-center mb-3">
-        <Text className="font-mono text-xs font-black text-black">
+        <Text className="font-mono text-xs font-black" style={{ color: chartTextColor }}>
           LOW {formatWeight(minWeight)} KG
         </Text>
-        <Text className="font-mono text-xs font-black text-black">
+        <Text className="font-mono text-xs font-black" style={{ color: chartTextColor }}>
           HIGH {formatWeight(maxWeight)} KG
         </Text>
       </View>
 
       <Svg width="100%" height={CHART_HEIGHT} viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}>
-        {[0.25, 0.5, 0.75].map((multiplier) => (
-          <Line
-            key={multiplier}
-            x1={12}
-            x2={CHART_WIDTH - 12}
-            y1={CHART_HEIGHT * multiplier}
-            y2={CHART_HEIGHT * multiplier}
-            stroke="#BDBDBD"
-            strokeWidth={2}
-          />
-        ))}
-        {pathData ? <Path d={pathData} stroke="#000000" strokeWidth={6} fill="none" /> : null}
+        {pathData ? <Path d={pathData} stroke={chartLineColor} strokeWidth={6} fill="none" /> : null}
+        {selectedPoint && tooltipLabel ? (
+          <>
+            <Rect
+              x={tooltipX}
+              y={tooltipY}
+              width={tooltipWidth}
+              height={24}
+              fill={chartLineColor}
+            />
+            <SvgText
+              x={tooltipX + tooltipWidth / 2}
+              y={tooltipY + 16}
+              fill={chartSurfaceColor}
+              fontSize={12}
+              fontWeight="900"
+              fontFamily="monospace"
+              textAnchor="middle"
+            >
+              {tooltipLabel}
+            </SvgText>
+          </>
+        ) : null}
         {chartPoints.map((point, index) => (
-          <Circle key={`${point.x}-${point.y}-${index}`} cx={point.x} cy={point.y} r={6} fill="#000000" />
+          <Rect
+            key={`${point.x}-${point.y}-${index}`}
+            x={point.x - 6}
+            y={point.y - 6}
+            width={12}
+            height={12}
+            fill={chartLineColor}
+            onPress={() =>
+              setSelectedPointIndex((currentIndex) => (currentIndex === index ? null : index))
+            }
+          />
         ))}
       </Svg>
 
       <View className="flex-row justify-between mt-3">
-        <Text className="font-mono text-xs font-bold text-black">{formatDate(points[0].loggedDate)}</Text>
-        <Text className="font-mono text-xs font-bold text-black">
+        <Text className="font-mono text-xs font-bold" style={{ color: chartTextColor }}>
+          {formatDate(points[0].loggedDate)}
+        </Text>
+        <Text className="font-mono text-xs font-bold" style={{ color: chartTextColor }}>
           {formatDate(points[points.length - 1].loggedDate)}
         </Text>
       </View>
@@ -167,38 +237,52 @@ const formatChangeLabel = (change: number) => {
 };
 
 export default function StatsScreen() {
+  const isDark = useColorScheme() === 'dark';
   const [streak, setStreak] = useState(0);
   const [averages, setAverages] = useState<NutritionAverages>(EMPTY_AVERAGES);
+  const [calorieGoalStatuses, setCalorieGoalStatuses] = useState<Last7DayCalorieGoalStatus[]>([]);
   const [weightHistory, setWeightHistory] = useState<WeightHistoryPoint[]>([]);
   const [selectedTimeframe, setSelectedTimeframe] = useState<WeightTimeframe>('30d');
   const [isLoading, setIsLoading] = useState(true);
 
-  const loadStats = useCallback(async () => {
+  const loadStaticStats = useCallback(async () => {
     setIsLoading(true);
-
     try {
-      const [nextStreak, nextAverages, nextWeightHistory] = await Promise.all([
+      const [nextStreak, nextAverages, nextCalorieGoalStatuses] = await Promise.all([
         getLoggingStreak(),
         getLast7DayNutritionAverages(),
-        getWeightHistory(selectedTimeframe),
+        getLast7DayCalorieGoalStatuses(),
       ]);
 
       setStreak(nextStreak);
       setAverages(nextAverages);
-      setWeightHistory(nextWeightHistory);
+      setCalorieGoalStatuses(nextCalorieGoalStatuses);
     } catch (error) {
       console.error('Failed to load statistics', error);
       Alert.alert('ERROR', 'FAILED TO LOAD STATS.');
     } finally {
       setIsLoading(false);
     }
+  }, []);
+
+  const loadWeightHistory = useCallback(async () => {
+    try {
+      const nextWeightHistory = await getWeightHistory(selectedTimeframe);
+      setWeightHistory(nextWeightHistory);
+    } catch (error) {
+      console.error('Failed to load weight history', error);
+    }
   }, [selectedTimeframe]);
 
   useFocusEffect(
     useCallback(() => {
-      loadStats();
-    }, [loadStats])
+      loadStaticStats();
+    }, [loadStaticStats])
   );
+
+  useEffect(() => {
+    loadWeightHistory();
+  }, [loadWeightHistory]);
 
   if (isLoading) {
     return (
@@ -209,7 +293,6 @@ export default function StatsScreen() {
   }
 
   const hasAverages = averages.daysLogged > 0;
-  const latestWeight = weightHistory[weightHistory.length - 1]?.weight ?? null;
   const changeSummary = summarizeWeightChange(weightHistory);
   const timeframeLabel =
     TIMEFRAME_OPTIONS.find((option) => option.id === selectedTimeframe)?.helper ?? 'LAST 30 DAYS';
@@ -225,14 +308,19 @@ export default function StatsScreen() {
           <Text className="font-mono text-xl font-black text-black mb-1.5">CURRENT STREAK</Text>
           <View className="h-1 bg-black mb-5" />
 
-          <View className="border-4 border-black bg-black px-6 py-8 items-center">
+          <View className="border-4 border-black bg-white px-6 py-8 items-center">
             <Text
-              className="font-mono font-black text-white tracking-tighter"
+              className="font-mono font-black text-black tracking-tighter"
               style={{ fontSize: 88, lineHeight: 88 }}
             >
               {streak}
             </Text>
-            <Text className="font-mono text-base font-black text-white mt-3">DAYS IN A ROW</Text>
+            <Text className="font-mono text-base font-black text-black mt-3">DAYS IN A ROW</Text>
+            <View className="flex-row justify-center gap-2 mt-4">
+              {calorieGoalStatuses.map((day) => (
+                <StreakDayDot key={day.loggedDate} status={day.status} />
+              ))}
+            </View>
           </View>
 
           <Text className="font-mono text-sm font-bold text-black mt-4">
@@ -245,17 +333,7 @@ export default function StatsScreen() {
           <View className="h-1 bg-black mb-3" />
           <Text className="font-mono text-xs font-bold text-black mb-5">{timeframeLabel}</Text>
 
-          {latestWeight !== null ? (
-            <View className="border-4 border-black bg-black px-6 py-6 mb-5">
-              <Text className="font-mono text-xs font-black text-white mb-2">LATEST WEIGHT</Text>
-              <Text className="font-mono font-black text-white tracking-tighter" style={{ fontSize: 64, lineHeight: 64 }}>
-                {formatWeight(latestWeight)}
-              </Text>
-              <Text className="font-mono text-sm font-black text-white mt-3">KG</Text>
-            </View>
-          ) : null}
-
-          <WeightChart points={weightHistory} />
+          <WeightChart points={weightHistory} isDark={isDark} />
 
           <View className="flex-row mt-5 mb-4 gap-2">
             {TIMEFRAME_OPTIONS.map((option) => (

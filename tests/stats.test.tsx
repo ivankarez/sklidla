@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as dao from '@/db/dao';
 import {
+  buildLast7DayCalorieGoalStatuses,
   buildSvgLinePath,
   buildWeightChartPoints,
   calculateLoggingStreak,
@@ -9,6 +10,7 @@ import {
   summarizeWeightChange,
 } from '@/db/stats';
 import * as expoRouter from 'expo-router';
+import * as reactNative from 'react-native';
 import StatsScreen from '../app/(tabs)/stats';
 
 const createLoggedAt = (daysAgo: number) => {
@@ -85,15 +87,85 @@ describe('statistics helpers', () => {
     expect(chartPoints[0].y).toBeLessThan(chartPoints[2].y);
     expect(buildSvgLinePath(chartPoints)).toMatch(/^M /);
   });
+
+  it('classifies each of the last 7 days as no_logs, met, or over', () => {
+    const referenceDate = new Date('2026-04-25T12:00:00');
+    const calorieGoal = 2000;
+
+    const statuses = buildLast7DayCalorieGoalStatuses(
+      [
+        { loggedDate: '2026-04-25', calories: 1800 },
+        { loggedDate: '2026-04-24', calories: 2100 },
+        { loggedDate: '2026-04-22', calories: 1950 },
+      ],
+      calorieGoal,
+      referenceDate
+    );
+
+    expect(statuses).toHaveLength(7);
+    expect(statuses[0].loggedDate).toBe('2026-04-19');
+    expect(statuses[6].loggedDate).toBe('2026-04-25');
+    expect(statuses[0].status).toBe('no_logs');
+    expect(statuses[1].status).toBe('no_logs');
+    expect(statuses[2].status).toBe('no_logs');
+    expect(statuses[3].status).toBe('met');
+    expect(statuses[4].status).toBe('no_logs');
+    expect(statuses[5].status).toBe('over');
+    expect(statuses[6].status).toBe('met');
+  });
+
+  it('marks a day as over when calories exactly exceed the goal', () => {
+    const referenceDate = new Date('2026-04-25T12:00:00');
+
+    const statuses = buildLast7DayCalorieGoalStatuses(
+      [{ loggedDate: '2026-04-25', calories: 2001 }],
+      2000,
+      referenceDate
+    );
+
+    const today = statuses.find((s) => s.loggedDate === '2026-04-25');
+    expect(today?.status).toBe('over');
+    expect(today?.calories).toBe(2001);
+  });
+
+  it('marks a day as met when calories equal the goal', () => {
+    const referenceDate = new Date('2026-04-25T12:00:00');
+
+    const statuses = buildLast7DayCalorieGoalStatuses(
+      [{ loggedDate: '2026-04-25', calories: 2000 }],
+      2000,
+      referenceDate
+    );
+
+    const today = statuses.find((s) => s.loggedDate === '2026-04-25');
+    expect(today?.status).toBe('met');
+  });
+
+  it('returns no_logs with zero calories for days with no data', () => {
+    const referenceDate = new Date('2026-04-25T12:00:00');
+
+    const statuses = buildLast7DayCalorieGoalStatuses([], 2000, referenceDate);
+
+    expect(statuses).toHaveLength(7);
+    statuses.forEach((s) => {
+      expect(s.status).toBe('no_logs');
+      expect(s.calories).toBe(0);
+    });
+  });
 });
 
 describe('statistics screen', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   beforeEach(() => {
     (expoRouter as any).__resetRouterMock();
     (dao as any).__resetMockDb();
   });
 
   it('shows the streak and 7-day averages from recent logged days', async () => {
+    await dao.setSetting('goal_calories', '450');
     (dao as any).__setMockLogs([
       {
         id: 1,
@@ -173,8 +245,8 @@ describe('statistics screen', () => {
 
     await waitFor(() => {
       expect(screen.getByText('WEIGHT TREND')).toBeTruthy();
-      expect(screen.getByText('LATEST WEIGHT')).toBeTruthy();
-      expect(screen.getByText('79.6')).toBeTruthy();
+      expect(screen.queryByText('LATEST WEIGHT')).toBeNull();
+      expect(screen.getByText('79.6 KG')).toBeTruthy();
       expect(screen.getByText('TOTAL CHANGE: DOWN 1.2 KG')).toBeTruthy();
       expect(screen.getByText('CURRENT STREAK')).toBeTruthy();
       expect(screen.getByText('3')).toBeTruthy();
@@ -183,6 +255,9 @@ describe('statistics screen', () => {
       expect(screen.getByText('37.5')).toBeTruthy();
       expect(screen.getByText('45')).toBeTruthy();
       expect(screen.getByText('20')).toBeTruthy();
+      expect(screen.getAllByLabelText('streak-day-over')).toHaveLength(3);
+      expect(screen.getAllByLabelText('streak-day-met')).toHaveLength(1);
+      expect(screen.getAllByLabelText('streak-day-no_logs')).toHaveLength(3);
     });
   });
 
@@ -201,14 +276,67 @@ describe('statistics screen', () => {
 
     fireEvent.click(screen.getByText('1Y'));
 
+    expect(screen.queryByText('COUNTING THE CHAOS...')).toBeNull();
+
     await waitFor(() => {
       expect(screen.getByText('TOTAL CHANGE: DOWN 4 KG')).toBeTruthy();
     });
 
     fireEvent.click(screen.getByText('ALL'));
 
+    expect(screen.queryByText('COUNTING THE CHAOS...')).toBeNull();
+
     await waitFor(() => {
       expect(screen.getByText('TOTAL CHANGE: DOWN 6 KG')).toBeTruthy();
     });
+  });
+
+  it('uses white chart strokes in dark mode', async () => {
+    vi.spyOn(reactNative, 'useColorScheme').mockReturnValue('dark');
+    (dao as any).__setMockWeightLogs([
+      { id: 1, weight: 81.4, logged_at: createWeightLoggedAt(5) },
+      { id: 2, weight: 80.8, logged_at: createWeightLoggedAt(3) },
+      { id: 3, weight: 80.1, logged_at: createWeightLoggedAt(1) },
+    ]);
+
+    render(<StatsScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Path')).toBeTruthy();
+    });
+
+    const path = screen.getByLabelText('Path');
+    const points = screen.getAllByLabelText('Rect');
+
+    expect(path.getAttribute('stroke')).toBe('#FFFFFF');
+    expect(screen.queryByLabelText('Line')).toBeNull();
+    expect(points).not.toHaveLength(0);
+    points.forEach((point) => {
+      expect(point.getAttribute('fill')).toBe('#FFFFFF');
+    });
+  });
+
+  it('shows the exact weight when a chart point is clicked', async () => {
+    (dao as any).__setMockWeightLogs([
+      { id: 1, weight: 81.4, logged_at: createWeightLoggedAt(5) },
+      { id: 2, weight: 80.8, logged_at: createWeightLoggedAt(3) },
+      { id: 3, weight: 80.1, logged_at: createWeightLoggedAt(1) },
+    ]);
+
+    render(<StatsScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Path')).toBeTruthy();
+    });
+
+    expect(screen.getByText('80.1 KG')).toBeTruthy();
+
+    const pointRects = screen
+      .getAllByLabelText('Rect')
+      .filter((element) => element.getAttribute('height') === '12');
+
+    fireEvent.click(pointRects[1]);
+
+    expect(screen.getByText('80.8 KG')).toBeTruthy();
   });
 });

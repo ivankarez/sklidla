@@ -37,6 +37,19 @@ const LEDGER_EMPTY_MESSAGES = [
   'THE VOID STARES BACK. LOG WHAT YOU ATE.',
 ] as const;
 
+const LOG_MEAL_CTA_MESSAGES = [
+  'LOCK THIS MEAL IN.',
+  'PUT IT IN THE LEDGER.',
+  'WRITE THAT DOWN.',
+  'FEED THE DATABASE.',
+  'YES, THAT COUNTS.',
+  'BANK THE BITE.',
+  'LOG THE DAMAGE.',
+  'MAKE IT OFFICIAL.',
+  'FILE THE SNACK CRIME.',
+  'TELL THE NUMBERS.',
+] as const;
+
 export const getRandomToastMessage = () => {
   const randomIndex = Math.floor(Math.random() * UNHINGED_TOAST_MESSAGES.length);
   return UNHINGED_TOAST_MESSAGES[randomIndex];
@@ -50,4 +63,9 @@ export const getRandomLibraryToastMessage = () => {
 export const getRandomLedgerEmptyMessage = () => {
   const randomIndex = Math.floor(Math.random() * LEDGER_EMPTY_MESSAGES.length);
   return LEDGER_EMPTY_MESSAGES[randomIndex];
+};
+
+export const getRandomLogMealCtaMessage = () => {
+  const randomIndex = Math.floor(Math.random() * LOG_MEAL_CTA_MESSAGES.length);
+  return LOG_MEAL_CTA_MESSAGES[randomIndex];
 };

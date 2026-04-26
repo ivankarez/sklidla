@@ -128,6 +128,34 @@ const getMockLast7DayNutritionAverages = () => {
   };
 };
 
+const getMockLast7DayCalorieGoalStatuses = () => {
+  const today = toLocalSqlDate(new Date());
+  const calorieGoal = Number.parseInt(mockSettings.get('goal_calories') ?? '2000', 10);
+  const normalizedCalorieGoal = Number.isFinite(calorieGoal) ? calorieGoal : 2000;
+  const dailyCalories = new Map();
+
+  mockLogs.forEach((log) => {
+    const loggedDate = toLocalSqlDate(log.logged_at);
+    const currentCalories = dailyCalories.get(loggedDate) ?? 0;
+    dailyCalories.set(loggedDate, currentCalories + log.hardcoded_calories);
+  });
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const loggedDate = shiftSqlDate(today, index - 6);
+    const calories = dailyCalories.get(loggedDate) ?? 0;
+
+    if (!dailyCalories.has(loggedDate)) {
+      return { loggedDate, status: 'no_logs', calories: 0 };
+    }
+
+    return {
+      loggedDate,
+      status: calories > normalizedCalorieGoal ? 'over' : 'met',
+      calories,
+    };
+  });
+};
+
 const getWeightRangeStartDate = (timeframe) => {
   const today = toLocalSqlDate(new Date());
 
@@ -245,11 +273,24 @@ vi.mock('@expo/vector-icons', async () => {
 });
 
 vi.mock('react-native-svg', async () => {
-  const reactNative = await import('react-native');
+  const SVG_TAG_MAP: Record<string, string> = {
+    Svg: 'svg',
+    Circle: 'circle',
+    Line: 'line',
+    Path: 'path',
+    Rect: 'rect',
+    SvgText: 'text',
+  };
 
-  const createSvgComponent = (displayName) => {
-    const Component = ({ children, ...props }) =>
-      React.createElement(reactNative.View, { ...props, accessibilityLabel: displayName }, children);
+  const createSvgComponent = (displayName: string) => {
+    const tag = SVG_TAG_MAP[displayName] ?? 'svg';
+    const Component = ({ children, onPress, ...props }) => {
+      return React.createElement(
+        tag,
+        { ...props, onClick: onPress, 'aria-label': displayName },
+        children
+      );
+    };
     Component.displayName = displayName;
     return Component;
   };
@@ -260,6 +301,7 @@ vi.mock('react-native-svg', async () => {
     Line: createSvgComponent('Line'),
     Path: createSvgComponent('Path'),
     Rect: createSvgComponent('Rect'),
+    Text: createSvgComponent('SvgText'),
   };
 });
 
@@ -411,6 +453,7 @@ vi.mock('@/db/dao', () => ({
   ),
   getLoggingStreak: vi.fn(async () => getMockLoggingStreak()),
   getLast7DayNutritionAverages: vi.fn(async () => getMockLast7DayNutritionAverages()),
+  getLast7DayCalorieGoalStatuses: vi.fn(async () => getMockLast7DayCalorieGoalStatuses()),
   getWeightHistory: vi.fn(async (timeframe) => getMockWeightHistory(timeframe)),
   deleteLog: vi.fn(async (id) => {
     mockLogs = mockLogs.filter((log) => log.id !== id);

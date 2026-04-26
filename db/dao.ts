@@ -3,8 +3,10 @@ import {
   getWeightRangeStartDate,
   calculateLoggingStreak,
   calculateNutritionAverages,
+  buildLast7DayCalorieGoalStatuses,
   DailyNutritionTotals,
   NutritionAverages,
+  Last7DayCalorieGoalStatus,
   WeightHistoryPoint,
   WeightTimeframe,
 } from './stats';
@@ -449,6 +451,42 @@ export const getLast7DayNutritionAverages = async (): Promise<NutritionAverages>
   }));
 
   return calculateNutritionAverages(dailyTotals);
+};
+
+export const getLast7DayCalorieGoalStatuses = async (
+  referenceDate: Date = new Date()
+): Promise<Last7DayCalorieGoalStatus[]> => {
+  const db = await getDb();
+  const [rows, macroGoals] = await Promise.all([
+    db.getAllAsync<{
+      logged_date: string;
+      calories: number;
+    }>(
+      `SELECT
+         date(logged_at, 'localtime') AS logged_date,
+         SUM(hardcoded_calories) AS calories
+       FROM logs
+       WHERE date(logged_at, 'localtime') BETWEEN date(?, 'localtime', '-6 days') AND date(?, 'localtime')
+       GROUP BY logged_date
+       ORDER BY logged_date DESC`,
+      [referenceDate.toISOString(), referenceDate.toISOString()]
+    ),
+    getMacroGoals(),
+  ]);
+
+  const calorieGoal = Number.parseInt(macroGoals.calories, 10);
+  const normalizedCalorieGoal = Number.isFinite(calorieGoal)
+    ? calorieGoal
+    : Number.parseInt(DEFAULT_MACRO_GOALS.calories, 10);
+
+  return buildLast7DayCalorieGoalStatuses(
+    rows.map((row) => ({
+      loggedDate: row.logged_date,
+      calories: row.calories,
+    })),
+    normalizedCalorieGoal,
+    referenceDate
+  );
 };
 
 export const clearAllData = async (): Promise<void> => {

@@ -14,6 +14,14 @@ export interface NutritionAverages {
   daysLogged: number;
 }
 
+export type CalorieGoalStatus = 'no_logs' | 'met' | 'over';
+
+export interface Last7DayCalorieGoalStatus {
+  loggedDate: string;
+  status: CalorieGoalStatus;
+  calories: number;
+}
+
 export type WeightTimeframe = '30d' | '1y' | 'all';
 
 export interface WeightHistoryPoint {
@@ -119,6 +127,34 @@ export const calculateNutritionAverages = (
     averageFats: totals.fats / days.length,
     daysLogged: days.length,
   };
+};
+
+export const buildLast7DayCalorieGoalStatuses = (
+  days: Pick<DailyNutritionTotals, 'loggedDate' | 'calories'>[],
+  calorieGoal: number,
+  referenceDate: Date = new Date()
+): Last7DayCalorieGoalStatus[] => {
+  const totalsByDate = new Map(days.map((day) => [day.loggedDate, day.calories]));
+  const today = getLocalSqlDate(referenceDate);
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const loggedDate = shiftSqlDate(today, index - 6);
+    const calories = totalsByDate.get(loggedDate) ?? 0;
+
+    if (!totalsByDate.has(loggedDate)) {
+      return {
+        loggedDate,
+        status: 'no_logs' as const,
+        calories: 0,
+      };
+    }
+
+    return {
+      loggedDate,
+      status: calories > calorieGoal ? ('over' as const) : ('met' as const),
+      calories,
+    };
+  });
 };
 
 export const summarizeWeightChange = (

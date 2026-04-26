@@ -122,6 +122,29 @@ npm run lint
 npm test
 ```
 
+### 5. Run the manual AI provider integration tests
+
+These do **real provider calls** and are intentionally **not** part of `npm test`.
+
+1. Copy the env template and fill in your keys:
+
+```bash
+cp .env.example .env
+```
+
+2. Run the manual suite:
+
+```bash
+npm run test:ai:integration
+```
+
+Notes:
+
+- required env vars: `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`
+- the suite exercises both the text-only autofill flow and the vision flow in `utils/ai.ts`
+- the committed vision smoke fixture lives in `tests/fixtures/ai-provider/vision-smoke.jpg`
+- these checks validate real provider wiring and structured outputs, not provider-to-provider nutrition exact-match parity
+
 ## Project structure
 
 | Path | What lives there |

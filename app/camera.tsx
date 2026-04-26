@@ -14,11 +14,12 @@ const AI_UPLOAD_MAX_DIMENSION = 1600;
 export default function CameraScreen() {
   const router = useRouter();
   const processingMessages = ['THINKING...', 'ONE SEC...', 'READING THAT NOW...'];
-  const { mode, source, nameHint, brandHint } = useLocalSearchParams<{
+  const { mode, source, nameHint, brandHint, returnParams } = useLocalSearchParams<{
     mode: 'meal' | 'label' | 'auto';
     source?: string;
     nameHint?: string;
     brandHint?: string;
+    returnParams?: string;
   }>();
   const [permission, requestPermission] = useCameraPermissions();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -72,11 +73,24 @@ export default function CameraScreen() {
     return suggestions;
   };
 
+  const manualEntryReturnParams = (() => {
+    if (typeof returnParams !== 'string' || !returnParams.trim()) return {};
+
+    try {
+      const parsed = JSON.parse(returnParams);
+      return typeof parsed === 'object' && parsed !== null ? parsed : {};
+    } catch (error) {
+      console.warn(`${CAMERA_DEBUG_PREFIX} failed to parse manual entry return params`, error);
+      return {};
+    }
+  })();
+
   const pushToManualEntry = (result: any) => {
     const servingSuggestions = asServingSuggestions(result);
     router.replace({
       pathname: '/manual-entry',
       params: {
+        ...manualEntryReturnParams,
         name: result?.name || '',
         cals: asMetricString(result?.calories_per_100g),
         pro: asMetricString(result?.protein_per_100g),
@@ -257,7 +271,20 @@ export default function CameraScreen() {
         style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}
       >
         <View className="flex-row justify-between items-center">
-          <Pressable onPress={() => router.back()} className="bg-white px-2.5 py-1.5">
+          <Pressable
+            onPress={() => {
+              if (source === 'manual-entry') {
+                router.replace({
+                  pathname: '/manual-entry',
+                  params: manualEntryReturnParams,
+                });
+                return;
+              }
+
+              router.back();
+            }}
+            className="bg-white px-2.5 py-1.5"
+          >
             <Text className="font-mono text-sm font-black text-black">ABORT</Text>
           </Pressable>
           <Text className="font-mono text-base font-black text-white bg-black px-2.5 py-1.5">

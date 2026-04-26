@@ -115,13 +115,24 @@ export default function ManualEntryScreen() {
   };
 
   const handleAiScan = () => {
-    router.push({
+    router.replace({
       pathname: '/camera',
       params: {
         mode: 'auto',
         source: 'manual-entry',
         nameHint: name.trim() || undefined,
         brandHint: brand.trim() || undefined,
+        returnParams: JSON.stringify({
+          name,
+          brand,
+          cals: calories,
+          pro: protein,
+          car: carbs,
+          fat: fats,
+          aiServings: JSON.stringify(servings),
+          returnTo: returnTo || '',
+          libraryMode: libraryMode || '',
+        }),
       },
     });
   };

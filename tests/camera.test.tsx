@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import * as dao from '@/db/dao';
 import * as expoRouter from 'expo-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -43,10 +44,12 @@ vi.mock('expo-image-manipulator', () => ({
 }));
 
 import CameraScreen from '../app/camera';
+import ManualEntryScreen from '../app/manual-entry';
 
 describe('camera screen', () => {
   beforeEach(() => {
     (expoRouter as any).__resetRouterMock();
+    (dao as any).__resetMockDb();
     cameraMocks.takePictureAsync.mockReset();
     cameraMocks.pausePreview.mockReset();
     cameraMocks.resumePreview.mockReset();
@@ -63,6 +66,10 @@ describe('camera screen', () => {
       source: 'manual-entry',
       nameHint: 'banana',
       brandHint: 'store brand',
+      returnParams: JSON.stringify({
+        returnTo: 'library',
+        libraryMode: 'select',
+      }),
     });
 
     cameraMocks.takePictureAsync.mockResolvedValue({
@@ -126,12 +133,99 @@ describe('camera screen', () => {
       expect(router.replace).toHaveBeenCalledWith({
         pathname: '/manual-entry',
         params: {
+          returnTo: 'library',
+          libraryMode: 'select',
           name: 'Banana',
           cals: '89',
           pro: '1.1',
           car: '22.8',
           fat: '0.3',
           aiServings: JSON.stringify([{ name: 'medium banana', weight: 118 }]),
+        },
+      });
+    });
+  });
+
+  it('restores the previous add-food draft when aborting from manual entry', async () => {
+    const router = (expoRouter as any).__routerMock;
+
+    (expoRouter as any).__setLocalSearchParams({
+      mode: 'auto',
+      source: 'manual-entry',
+      returnParams: JSON.stringify({
+        name: 'Draft Food',
+        brand: 'Draft Brand',
+        cals: '123',
+        pro: '10',
+        car: '11',
+        fat: '12',
+        aiServings: JSON.stringify([{ name: 'slice', weight: 30 }]),
+        returnTo: 'log',
+      }),
+    });
+
+    render(<CameraScreen />);
+
+    fireEvent.click(screen.getByText('ABORT'));
+
+    expect(router.replace).toHaveBeenCalledWith({
+      pathname: '/manual-entry',
+      params: {
+        name: 'Draft Food',
+        brand: 'Draft Brand',
+        cals: '123',
+        pro: '10',
+        car: '11',
+        fat: '12',
+        aiServings: JSON.stringify([{ name: 'slice', weight: 30 }]),
+        returnTo: 'log',
+      },
+    });
+  });
+
+  it('opens the camera with replace and preserves the current add-food draft', async () => {
+    const router = (expoRouter as any).__routerMock;
+    (dao as any).__setMockSetting('ai_enabled', 'true');
+
+    (expoRouter as any).__setLocalSearchParams({
+      returnTo: 'library',
+      libraryMode: 'select',
+    });
+
+    render(<ManualEntryScreen />);
+
+    fireEvent.change(screen.getByPlaceholderText('e.g. Chicken Breast'), {
+      target: { value: 'Draft Food' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('e.g. Tyson'), {
+      target: { value: 'Draft Brand' },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('SNAP PHOTO')).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByText('SNAP PHOTO'));
+
+    await waitFor(() => {
+      expect(router.replace).toHaveBeenCalledWith({
+        pathname: '/camera',
+        params: {
+          mode: 'auto',
+          source: 'manual-entry',
+          nameHint: 'Draft Food',
+          brandHint: 'Draft Brand',
+          returnParams: JSON.stringify({
+            name: 'Draft Food',
+            brand: 'Draft Brand',
+            cals: '',
+            pro: '',
+            car: '',
+            fat: '',
+            aiServings: '[]',
+            returnTo: 'library',
+            libraryMode: 'select',
+          }),
         },
       });
     });

@@ -143,10 +143,10 @@ export default function Dashboard() {
     const fat = Number.parseInt(macroGoals.fats, 10);
 
     setGoals({
-      cal: Number.isFinite(cal) ? cal : 2500,
-      pro: Number.isFinite(pro) ? pro : 150,
-      car: Number.isFinite(car) ? car : 200,
-      fat: Number.isFinite(fat) ? fat : 65,
+      cal: Number.isFinite(cal) && cal > 0 ? cal : 2500,
+      pro: Number.isFinite(pro) && pro > 0 ? pro : 150,
+      car: Number.isFinite(car) && car > 0 ? car : 200,
+      fat: Number.isFinite(fat) && fat > 0 ? fat : 65,
     });
   }, []);
 
@@ -663,6 +663,7 @@ export default function Dashboard() {
               onPress={() => {
                 void handleSaveActivity();
               }}
+              disabled={isSavingActivity}
               className="bg-black border-2 border-black py-4 items-center"
             >
               <Text className="font-mono text-base font-black text-white">

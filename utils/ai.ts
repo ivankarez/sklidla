@@ -13,19 +13,23 @@ import {
 } from 'ai';
 import * as SecureStore from 'expo-secure-store';
 import { Alert } from 'react-native';
-import { buildFoodNameAutofillPrompt, buildUnifiedPrompt } from './ai-prompts';
+import { buildFoodNameAutofillPrompt, buildMealScanPrompt, buildUnifiedPrompt } from './ai-prompts';
 import {
   aiExtractionSchema,
   foodNameAutofillSchema,
+  mealScanSchema,
   sanitizeAiExtraction,
   sanitizeFoodNameAutofill,
+  sanitizeMealScan,
   type AiExtractionResult,
   type AiProviderName,
   type AnalyzeImageInput,
   type FoodNameAutofillInput,
   type FoodNameAutofillResult,
+  type MealScanResult,
   type StructuredAiExtractionOutput,
   type StructuredFoodNameAutofillOutput,
+  type StructuredMealScanOutput,
 } from './ai-schemas';
 
 export type {
@@ -33,6 +37,8 @@ export type {
   AnalyzeImageInput,
   FoodNameAutofillInput,
   FoodNameAutofillResult,
+  MealScanItemResult,
+  MealScanResult,
   ServingSizeSuggestion
 } from './ai-schemas';
 
@@ -347,6 +353,45 @@ export async function processFoodImage(input: AnalyzeImageInput): Promise<AiExtr
     return sanitized;
   } catch (error) {
     console.error(`${AI_DEBUG_PREFIX} ${requestId} vision request failed`, error);
+    Alert.alert('AI ERROR', getAiErrorMessage(error));
+    return null;
+  }
+}
+
+export async function processMealImage(input: AnalyzeImageInput): Promise<MealScanResult | null> {
+  const requestId = createAiRequestId('vision');
+  const aiEnabled = await getSetting('ai_enabled');
+  if (aiEnabled === 'false') {
+    warnAi(requestId, 'meal vision request aborted because AI is disabled');
+    Alert.alert('AI DISABLED', 'AI FUNCTIONS ARE TURNED OFF IN THE VAULT.');
+    return null;
+  }
+
+  logAi(requestId, 'starting meal vision request', {
+    imageBase64Length: stripBase64Prefix(input.base64Image).length,
+  });
+
+  const config = await loadProviderConfig(requestId);
+  if (!config) return null;
+
+  try {
+    const output = await generateStructuredOutput<StructuredMealScanOutput>({
+      config,
+      taskKind: 'vision',
+      prompt: buildMealScanPrompt(),
+      schema: mealScanSchema,
+      base64Image: input.base64Image,
+      requestId,
+    });
+
+    const sanitized = sanitizeMealScan(output);
+    logAi(requestId, 'meal vision request sanitized successfully', {
+      itemCount: sanitized.items.length,
+      itemNames: sanitized.items.map((item) => item.name),
+    });
+    return sanitized;
+  } catch (error) {
+    console.error(`${AI_DEBUG_PREFIX} ${requestId} meal vision request failed`, error);
     Alert.alert('AI ERROR', getAiErrorMessage(error));
     return null;
   }

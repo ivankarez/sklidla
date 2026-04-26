@@ -7,7 +7,8 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, type LayoutChangeEvent, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { addFood } from '../db/dao';
-import { processFoodImage } from '../utils/ai';
+import { processFoodImage, processMealImage } from '../utils/ai';
+import { setPendingScannedLogMealItems } from '@/src/log-food-session';
 
 const CAMERA_DEBUG_PREFIX = '[Camera]';
 const AI_UPLOAD_MAX_DIMENSION = 1600;
@@ -24,7 +25,7 @@ export default function CameraScreen() {
   const router = useRouter();
   const { mode, source, nameHint, brandHint, returnParams } = useLocalSearchParams<{
     mode: 'meal' | 'label' | 'auto';
-    source?: string;
+    source?: 'manual-entry' | 'log-meal';
     nameHint?: string;
     brandHint?: string;
     returnParams?: string;
@@ -236,16 +237,50 @@ export default function CameraScreen() {
       });
 
       console.log(`${CAMERA_DEBUG_PREFIX} ${captureId} sending image to AI`);
-      const result = await processFoodImage({
-        base64Image: normalizedPhoto.base64,
-        nameHint: typeof nameHint === 'string' ? nameHint : undefined,
-        brandHint: typeof brandHint === 'string' ? brandHint : undefined,
-      });
-      
+      const result =
+        mode === 'meal'
+          ? await processMealImage({
+              base64Image: normalizedPhoto.base64,
+              nameHint: typeof nameHint === 'string' ? nameHint : undefined,
+              brandHint: typeof brandHint === 'string' ? brandHint : undefined,
+            })
+          : await processFoodImage({
+              base64Image: normalizedPhoto.base64,
+              nameHint: typeof nameHint === 'string' ? nameHint : undefined,
+              brandHint: typeof brandHint === 'string' ? brandHint : undefined,
+            });
+
       if (!result) {
         console.warn(`${CAMERA_DEBUG_PREFIX} ${captureId} AI returned no result`);
         setCapturedImageUri(null);
         setIsProcessing(false);
+        return;
+      }
+
+      if (mode === 'meal') {
+        console.log(`${CAMERA_DEBUG_PREFIX} ${captureId} AI returned meal result`, {
+          itemCount: result.items.length,
+          itemNames: result.items.map((item) => item.name),
+        });
+
+        if (result.items.length === 0) {
+          Alert.alert('SCAN FAILED', "COULDN'T SEPARATE THAT MEAL. TRY ANOTHER SHOT.");
+          setCapturedImageUri(null);
+          setIsProcessing(false);
+          return;
+        }
+
+        setPendingScannedLogMealItems(result.items);
+        setCapturedImageUri(null);
+        setIsProcessing(false);
+
+        if (source === 'log-meal') {
+          console.log(`${CAMERA_DEBUG_PREFIX} ${captureId} returning scanned meal items to log flow`);
+          router.back();
+          return;
+        }
+
+        router.replace('/log-food');
         return;
       }
 

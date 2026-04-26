@@ -389,6 +389,7 @@ export interface Food {
   id: number;
   name: string;
   brand: string | null;
+  is_hidden?: number;
   calories_per_100g: number;
   protein_per_100g: number;
   carbs_per_100g: number;
@@ -398,11 +399,12 @@ export interface Food {
 export const addFood = async (food: Omit<Food, 'id'>): Promise<number> => {
   const db = await getDb();
   const result = await db.runAsync(
-    `INSERT INTO foods (name, brand, calories_per_100g, protein_per_100g, carbs_per_100g, fats_per_100g)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO foods (name, brand, is_hidden, calories_per_100g, protein_per_100g, carbs_per_100g, fats_per_100g)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [
       food.name,
       food.brand || null,
+      food.is_hidden ?? 0,
       food.calories_per_100g,
       food.protein_per_100g,
       food.carbs_per_100g,
@@ -435,7 +437,8 @@ export const searchFoods = async (query: string): Promise<Food[]> => {
     `SELECT f.* 
      FROM foods f 
      LEFT JOIN logs l ON f.id = l.food_id 
-     WHERE f.name LIKE ? OR f.brand LIKE ? 
+     WHERE f.is_hidden = 0
+       AND (f.name LIKE ? OR f.brand LIKE ?) 
      GROUP BY f.id 
      ORDER BY MAX(l.logged_at) DESC NULLS LAST, f.name ASC`,
     [`%${query}%`, `%${query}%`]
@@ -448,6 +451,7 @@ export const getAllFoods = async (): Promise<Food[]> => {
     `SELECT f.* 
      FROM foods f 
      LEFT JOIN logs l ON f.id = l.food_id 
+     WHERE f.is_hidden = 0
      GROUP BY f.id 
      ORDER BY MAX(l.logged_at) DESC NULLS LAST, f.name ASC`
   );

@@ -61,7 +61,7 @@ vi.mock('@openrouter/ai-sdk-provider', () => ({
   createOpenRouter: mocks.createOpenRouter,
 }));
 
-import { processFoodImage, processFoodNameAutofill, requestGeminiJson } from '@/utils/ai';
+import { processFoodImage, processFoodNameAutofill, processMealImage, requestGeminiJson } from '@/utils/ai';
 
 type ProviderName = 'Gemini' | 'OpenAI' | 'OpenRouter';
 
@@ -95,6 +95,52 @@ const autofillOutput = {
     { name: 'tub', weight_g: 500 },
     { name: 'single serve', weight_g: 150 },
     { name: 'ignored extra', weight_g: 1000 },
+  ],
+};
+
+const mealScanOutput = {
+  items: [
+    {
+      name: ' Apple ',
+      brand: ' ',
+      calories_per_100g: 52,
+      protein_per_100g: 0.3,
+      carbs_per_100g: 14,
+      fats_per_100g: 0.2,
+      estimated_amount: 2,
+      estimated_amount_unit: ' apple ',
+      estimated_weight_g: 364,
+      serving_sizes: [
+        { name: ' apple ', weight_g: 182 },
+        { name: 'cup', weight_g: 125 },
+      ],
+    },
+    {
+      name: ' Bread Slice ',
+      brand: ' Bakery ',
+      calories_per_100g: 265,
+      protein_per_100g: 9,
+      carbs_per_100g: 49,
+      fats_per_100g: 3.2,
+      estimated_amount: 1,
+      estimated_amount_unit: 'slice',
+      estimated_weight_g: 32,
+      serving_sizes: [
+        { name: 'slice', weight_g: 32 },
+      ],
+    },
+    {
+      name: 'unknown',
+      brand: ' ',
+      calories_per_100g: 0,
+      protein_per_100g: 0,
+      carbs_per_100g: 0,
+      fats_per_100g: 0,
+      estimated_amount: 0,
+      estimated_amount_unit: '',
+      estimated_weight_g: 0,
+      serving_sizes: [],
+    },
   ],
 };
 
@@ -296,6 +342,52 @@ describe('utils/ai', () => {
           { name: 'large banana', weight_g: 136 },
         ],
         detection_type: 'food',
+      });
+    },
+  );
+
+  it.each<ProviderName>(['Gemini', 'OpenAI', 'OpenRouter'])(
+    'routes meal image analysis through the %s provider branch',
+    async (providerName) => {
+      provider = providerName;
+      mocks.generateText.mockResolvedValue({ output: mealScanOutput });
+
+      const result = await processMealImage({
+        base64Image: 'data:image/jpeg;base64,TESTBASE64',
+      });
+
+      expectVisionCall(providerName);
+      expect(result).toEqual({
+        items: [
+          {
+            name: 'Apple',
+            calories_per_100g: 52,
+            protein_per_100g: 0.3,
+            carbs_per_100g: 14,
+            fats_per_100g: 0.2,
+            estimated_amount: 2,
+            estimated_amount_unit: 'apple',
+            estimated_weight_g: 364,
+            serving_sizes: [
+              { name: 'apple', weight_g: 182 },
+              { name: 'cup', weight_g: 125 },
+            ],
+          },
+          {
+            name: 'Bread Slice',
+            brand: 'Bakery',
+            calories_per_100g: 265,
+            protein_per_100g: 9,
+            carbs_per_100g: 49,
+            fats_per_100g: 3.2,
+            estimated_amount: 1,
+            estimated_amount_unit: 'slice',
+            estimated_weight_g: 32,
+            serving_sizes: [
+              { name: 'slice', weight_g: 32 },
+            ],
+          },
+        ],
       });
     },
   );

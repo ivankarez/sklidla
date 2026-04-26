@@ -6,12 +6,14 @@ import { Alert } from 'react-native';
 import Dashboard from '../app/(tabs)/index';
 import LogFoodScreen from '../app/log-food';
 import ManualEntryScreen from '../app/manual-entry';
+import * as logFoodSession from '@/src/log-food-session';
 
 describe('food creation and logging flow', () => {
   beforeEach(() => {
     (expoRouter as any).__resetRouterMock();
     (dao as any).__resetMockDb();
     (expoRouter as any).__setLocalSearchParams({});
+    (logFoodSession as any).__setPendingScannedLogMealItems(null);
   });
 
   it('lets the user add a food, log it, and see it on the dashboard', async () => {
@@ -48,9 +50,7 @@ describe('food creation and logging flow', () => {
 
     expect(screen.queryByTestId('save-meal-cta')).toBeNull();
 
-    const foodOption = screen.getAllByText('Chicken Breast')[0].closest('[tabindex="0"]');
-    expect(foodOption).toBeTruthy();
-    fireEvent.click(foodOption as Element);
+    fireEvent.click(screen.getAllByText('Chicken Breast')[0]);
 
     await waitFor(() => {
       expect(screen.getByText('ADD TO LOG')).toBeTruthy();
@@ -257,6 +257,72 @@ describe('food creation and logging flow', () => {
 
     await waitFor(() => {
       expect(screen.getByText('0ML')).toBeTruthy();
+    });
+  });
+
+  it('hydrates scanned meal items into LOG MEAL and saves them as hidden foods', async () => {
+    const router = (expoRouter as any).__routerMock;
+    (dao as any).__setMockSetting('ai_enabled', 'true');
+    (logFoodSession as any).setPendingScannedLogMealItems([
+      {
+        name: 'Apple',
+        calories_per_100g: 52,
+        protein_per_100g: 0.3,
+        carbs_per_100g: 14,
+        fats_per_100g: 0.2,
+        estimated_amount: 2,
+        estimated_amount_unit: 'apple',
+        estimated_weight_g: 364,
+        serving_sizes: [{ name: 'apple', weight_g: 182 }],
+      },
+      {
+        name: 'Bread',
+        calories_per_100g: 265,
+        protein_per_100g: 9,
+        carbs_per_100g: 49,
+        fats_per_100g: 3.2,
+        estimated_amount: 1,
+        estimated_amount_unit: 'slice',
+        estimated_weight_g: 32,
+        serving_sizes: [{ name: 'slice', weight_g: 32 }],
+      },
+    ]);
+
+    render(<LogFoodScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Apple')).toBeTruthy();
+      expect(screen.getByText('Bread')).toBeTruthy();
+      expect(screen.getByTestId('open-meal-scan')).toBeTruthy();
+      expect(screen.getByTestId('save-meal-cta')).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByTestId('save-meal-cta'));
+
+    await waitFor(() => {
+      expect(dao.addFood).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Apple',
+          is_hidden: 1,
+        })
+      );
+      expect(dao.addFood).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Bread',
+          is_hidden: 1,
+        })
+      );
+      expect(router.replace).toHaveBeenCalledWith({
+        pathname: '/(tabs)',
+        params: { toastMessage: expect.any(String) },
+      });
+    });
+
+    render(<Dashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Apple')).toBeTruthy();
+      expect(screen.getByText('Bread')).toBeTruthy();
     });
   });
 });

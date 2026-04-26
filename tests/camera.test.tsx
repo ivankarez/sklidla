@@ -9,6 +9,7 @@ const cameraMocks = vi.hoisted(() => ({
   resumePreview: vi.fn(),
   requestPermission: vi.fn(),
   processFoodImage: vi.fn(),
+  processMealImage: vi.fn(),
   manipulateAsync: vi.fn(),
 }));
 
@@ -34,6 +35,7 @@ vi.mock('expo-camera', async () => {
 
 vi.mock('../utils/ai', () => ({
   processFoodImage: cameraMocks.processFoodImage,
+  processMealImage: cameraMocks.processMealImage,
 }));
 
 vi.mock('expo-image-manipulator', () => ({
@@ -55,6 +57,7 @@ describe('camera screen', () => {
     cameraMocks.resumePreview.mockReset();
     cameraMocks.requestPermission.mockReset();
     cameraMocks.processFoodImage.mockReset();
+    cameraMocks.processMealImage.mockReset();
     cameraMocks.manipulateAsync.mockReset();
   });
 
@@ -223,6 +226,70 @@ describe('camera screen', () => {
     });
 
     expect(screen.getByTestId('camera-processing-spinner')).toBeTruthy();
+  });
+
+  it('returns scanned meal items to the log meal flow', async () => {
+    const router = (expoRouter as any).__routerMock;
+    const logFoodSession = await import('@/src/log-food-session');
+
+    (expoRouter as any).__setLocalSearchParams({
+      mode: 'meal',
+      source: 'log-meal',
+    });
+
+    cameraMocks.takePictureAsync.mockResolvedValue({
+      uri: 'file://meal.jpg',
+      width: 2000,
+      height: 1500,
+    });
+    cameraMocks.manipulateAsync.mockResolvedValue({
+      uri: 'file://meal-resized.jpg',
+      width: 1600,
+      height: 1200,
+      base64: 'MEALBASE64',
+    });
+    cameraMocks.processMealImage.mockResolvedValue({
+      items: [
+        {
+          name: 'Spaghetti',
+          calories_per_100g: 160,
+          protein_per_100g: 5.8,
+          carbs_per_100g: 31,
+          fats_per_100g: 1.1,
+          estimated_amount: 1,
+          estimated_amount_unit: 'portion',
+          estimated_weight_g: 320,
+          serving_sizes: [{ name: 'portion', weight_g: 320 }],
+        },
+      ],
+    });
+
+    render(<CameraScreen />);
+
+    fireEvent.click(screen.getByTestId('capture-photo-cta'));
+
+    await waitFor(() => {
+      expect(cameraMocks.processMealImage).toHaveBeenCalledWith({
+        base64Image: 'MEALBASE64',
+        nameHint: undefined,
+        brandHint: undefined,
+      });
+    });
+
+    expect(logFoodSession.consumePendingScannedLogMealItems()).toEqual([
+      {
+        name: 'Spaghetti',
+        calories_per_100g: 160,
+        protein_per_100g: 5.8,
+        carbs_per_100g: 31,
+        fats_per_100g: 1.1,
+        estimated_amount: 1,
+        estimated_amount_unit: 'portion',
+        estimated_weight_g: 320,
+        serving_sizes: [{ name: 'portion', weight_g: 320 }],
+      },
+    ]);
+    expect(router.back).toHaveBeenCalled();
   });
 
   it('opens the camera with replace and preserves the current add-food draft', async () => {

@@ -19,6 +19,7 @@ export const initDb = async () => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       brand TEXT,
+      is_hidden INTEGER NOT NULL DEFAULT 0,
       calories_per_100g REAL NOT NULL,
       protein_per_100g REAL NOT NULL,
       carbs_per_100g REAL NOT NULL,
@@ -86,4 +87,9 @@ export const initDb = async () => {
        AND CAST(s.value AS REAL) > 0
        AND NOT EXISTS (SELECT 1 FROM weight_logs)`,
   );
+
+  const foodColumns = await database.getAllAsync<{ name: string }>('PRAGMA table_info(foods)');
+  if (!foodColumns.some((column) => column.name === 'is_hidden')) {
+    await database.execAsync('ALTER TABLE foods ADD COLUMN is_hidden INTEGER NOT NULL DEFAULT 0;');
+  }
 };

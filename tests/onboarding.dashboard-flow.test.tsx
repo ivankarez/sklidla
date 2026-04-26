@@ -41,7 +41,20 @@ describe('new user onboarding flow', () => {
     fireEvent.click(screen.getByText('LOCK MACROS'));
 
     await waitFor(() => {
-      expect(dao.setSetting).toHaveBeenCalledWith('goal_calories', expectedCalories.toString());
+      expect(dao.saveMacroGoals).toHaveBeenCalledWith(
+        expect.objectContaining({
+          calories: expectedCalories.toString(),
+        })
+      );
+      expect(dao.saveUserProfile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          gender: 'male',
+          age: '30',
+          weight: '80',
+          height: '180',
+        }),
+        { recordWeightHistory: true }
+      );
     });
     expect(router.push).toHaveBeenCalledWith('/onboarding/ai-setup');
     macroSetup.unmount();

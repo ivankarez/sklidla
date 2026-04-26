@@ -13,21 +13,25 @@ let localSearchParams = {};
 
 const mockSettings = new Map();
 let mockLogs = [];
+let mockWeightLogs = [];
 let mockFoods = [];
 let mockServingSizes = [];
 let nextFoodId = 1;
 let nextServingSizeId = 1;
 let nextLogId = 1;
+let nextWeightLogId = 1;
 let pendingCreatedLogFood = null;
 
 const resetMockState = () => {
   mockSettings.clear();
   mockLogs = [];
+  mockWeightLogs = [];
   mockFoods = [];
   mockServingSizes = [];
   nextFoodId = 1;
   nextServingSizeId = 1;
   nextLogId = 1;
+  nextWeightLogId = 1;
   pendingCreatedLogFood = null;
 };
 
@@ -124,6 +128,41 @@ const getMockLast7DayNutritionAverages = () => {
   };
 };
 
+const getWeightRangeStartDate = (timeframe) => {
+  const today = toLocalSqlDate(new Date());
+
+  if (timeframe === 'all') {
+    return null;
+  }
+
+  if (timeframe === '30d') {
+    return shiftSqlDate(today, -29);
+  }
+
+  return shiftSqlDate(today, -364);
+};
+
+const getMockWeightHistory = (timeframe) => {
+  const startDate = getWeightRangeStartDate(timeframe);
+  const latestEntryByDay = new Map();
+
+  mockWeightLogs
+    .filter((entry) => startDate === null || toLocalSqlDate(entry.logged_at) >= startDate)
+    .sort((left, right) => left.logged_at.localeCompare(right.logged_at))
+    .forEach((entry) => {
+      const loggedDate = toLocalSqlDate(entry.logged_at);
+      latestEntryByDay.set(loggedDate, {
+        loggedDate,
+        loggedAt: entry.logged_at,
+        weight: entry.weight,
+      });
+    });
+
+  return Array.from(latestEntryByDay.values()).sort((left, right) =>
+    left.loggedDate.localeCompare(right.loggedDate)
+  );
+};
+
 vi.mock('expo-router', () => {
   const Tabs = ({ children }) =>
     React.createElement(React.Fragment, null, children);
@@ -205,6 +244,25 @@ vi.mock('@expo/vector-icons', async () => {
   };
 });
 
+vi.mock('react-native-svg', async () => {
+  const reactNative = await import('react-native');
+
+  const createSvgComponent = (displayName) => {
+    const Component = ({ children, ...props }) =>
+      React.createElement(reactNative.View, { ...props, accessibilityLabel: displayName }, children);
+    Component.displayName = displayName;
+    return Component;
+  };
+
+  return {
+    default: createSvgComponent('Svg'),
+    Circle: createSvgComponent('Circle'),
+    Line: createSvgComponent('Line'),
+    Path: createSvgComponent('Path'),
+    Rect: createSvgComponent('Rect'),
+  };
+});
+
 vi.mock('react-native-gesture-handler/ReanimatedSwipeable', () => ({
   default: ({ children }) =>
     React.createElement(React.Fragment, null, children),
@@ -276,6 +334,46 @@ vi.mock('@/db/dao', () => ({
   setSetting: vi.fn(async (key, value) => {
     mockSettings.set(key, value);
   }),
+  getUserProfile: vi.fn(async () => ({
+    gender: mockSettings.get('bio_gender') ?? 'nonbinary',
+    age: mockSettings.get('bio_age') ?? '',
+    weight: mockSettings.get('bio_weight') ?? '',
+    height: mockSettings.get('bio_height') ?? '',
+    activityLevel: mockSettings.get('bio_activity') ?? 'sedentary',
+    goal: mockSettings.get('bio_goal') ?? 'maintain',
+    dietaryPreference: mockSettings.get('bio_diet') ?? 'meathead',
+  })),
+  saveUserProfile: vi.fn(async (profile, options = {}) => {
+    const previousWeight = mockSettings.get('bio_weight') ?? '';
+
+    mockSettings.set('bio_gender', profile.gender);
+    mockSettings.set('bio_age', profile.age);
+    mockSettings.set('bio_weight', profile.weight);
+    mockSettings.set('bio_height', profile.height);
+    mockSettings.set('bio_activity', profile.activityLevel);
+    mockSettings.set('bio_goal', profile.goal);
+    mockSettings.set('bio_diet', profile.dietaryPreference);
+
+    if (options.recordWeightHistory && previousWeight !== profile.weight && profile.weight) {
+      mockWeightLogs.push({
+        id: nextWeightLogId++,
+        weight: Number.parseFloat(profile.weight),
+        logged_at: options.recordedAt ?? new Date().toISOString(),
+      });
+    }
+  }),
+  getMacroGoals: vi.fn(async () => ({
+    calories: mockSettings.get('goal_calories') ?? '2000',
+    protein: mockSettings.get('goal_protein') ?? '150',
+    carbs: mockSettings.get('goal_carbs') ?? '200',
+    fats: mockSettings.get('goal_fats') ?? '65',
+  })),
+  saveMacroGoals: vi.fn(async (goals) => {
+    mockSettings.set('goal_calories', goals.calories || '2000');
+    mockSettings.set('goal_protein', goals.protein || '150');
+    mockSettings.set('goal_carbs', goals.carbs || '200');
+    mockSettings.set('goal_fats', goals.fats || '65');
+  }),
   addFood: vi.fn(async (food) => {
     const createdFood = { id: nextFoodId++, ...food };
     mockFoods.push(createdFood);
@@ -313,6 +411,7 @@ vi.mock('@/db/dao', () => ({
   ),
   getLoggingStreak: vi.fn(async () => getMockLoggingStreak()),
   getLast7DayNutritionAverages: vi.fn(async () => getMockLast7DayNutritionAverages()),
+  getWeightHistory: vi.fn(async (timeframe) => getMockWeightHistory(timeframe)),
   deleteLog: vi.fn(async (id) => {
     mockLogs = mockLogs.filter((log) => log.id !== id);
   }),
@@ -386,6 +485,9 @@ vi.mock('@/db/dao', () => ({
   },
   __setMockLogs: (logs) => {
     mockLogs = logs;
+  },
+  __setMockWeightLogs: (weightLogs) => {
+    mockWeightLogs = weightLogs;
   },
 }));
 

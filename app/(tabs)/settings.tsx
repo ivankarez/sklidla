@@ -4,7 +4,15 @@ import * as SecureStore from 'expo-secure-store';
 import { useEffect, useState } from 'react';
 import { Alert, Modal, Appearance, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getSetting, setSetting, clearAllData } from '../../db/dao';
+import {
+  clearAllData,
+  getMacroGoals,
+  getSetting,
+  getUserProfile,
+  saveMacroGoals,
+  saveUserProfile,
+  setSetting,
+} from '../../db/dao';
 import { useRouter } from 'expo-router';
 import { MacroCalculator } from '@/src/components/macro-calculator';
 
@@ -65,31 +73,23 @@ export default function SettingsScreen() {
           else if (storedAi) setApiKey(storedAi);
         }
 
-        const cal = await getSetting('goal_calories');
-        const pro = await getSetting('goal_protein');
-        const car = await getSetting('goal_carbs');
-        const fat = await getSetting('goal_fats');
+        const [macroGoals, profile] = await Promise.all([
+          getMacroGoals(),
+          getUserProfile(),
+        ]);
 
-        if (cal) setGoalCalories(cal);
-        if (pro) setGoalProtein(pro);
-        if (car) setGoalCarbs(car);
-        if (fat) setGoalFats(fat);
+        setGoalCalories(macroGoals.calories);
+        setGoalProtein(macroGoals.protein);
+        setGoalCarbs(macroGoals.carbs);
+        setGoalFats(macroGoals.fats);
 
-        const sGender = await getSetting('bio_gender');
-        const sAge = await getSetting('bio_age');
-        const sWeight = await getSetting('bio_weight');
-        const sHeight = await getSetting('bio_height');
-        const sActivity = await getSetting('bio_activity');
-        const sGoal = await getSetting('bio_goal');
-        const sDiet = await getSetting('bio_diet');
-
-        if (sGender) setGender(sGender);
-        if (sAge) setAge(sAge);
-        if (sWeight) setWeight(sWeight);
-        if (sHeight) setHeight(sHeight);
-        if (sActivity) setActivityLevel(sActivity);
-        if (sGoal) setGoal(sGoal);
-        if (sDiet) setDietaryPreference(sDiet);
+        setGender(profile.gender);
+        setAge(profile.age);
+        setWeight(profile.weight);
+        setHeight(profile.height);
+        setActivityLevel(profile.activityLevel);
+        setGoal(profile.goal);
+        setDietaryPreference(profile.dietaryPreference);
 
         const storedTheme = await getSetting('theme_preference');
         if (storedTheme) setThemePreference(storedTheme);
@@ -112,18 +112,26 @@ export default function SettingsScreen() {
         await setSetting('ai_provider', aiProvider);
         await SecureStore.setItemAsync('apiKey', apiKey);
 
-        await setSetting('goal_calories', goalCalories || '2000');
-        await setSetting('goal_protein', goalProtein || '150');
-        await setSetting('goal_carbs', goalCarbs || '200');
-        await setSetting('goal_fats', goalFats || '65');
-
-        await setSetting('bio_gender', gender);
-        await setSetting('bio_age', age);
-        await setSetting('bio_weight', weight);
-        await setSetting('bio_height', height);
-        await setSetting('bio_activity', activityLevel);
-        await setSetting('bio_goal', goal);
-        await setSetting('bio_diet', dietaryPreference);
+        await Promise.all([
+          saveMacroGoals({
+            calories: goalCalories,
+            protein: goalProtein,
+            carbs: goalCarbs,
+            fats: goalFats,
+          }),
+          saveUserProfile(
+            {
+              gender,
+              age,
+              weight,
+              height,
+              activityLevel,
+              goal,
+              dietaryPreference,
+            },
+            { recordWeightHistory: true }
+          ),
+        ]);
 
         await setSetting('theme_preference', themePreference);
       } catch (e) {
@@ -148,7 +156,70 @@ export default function SettingsScreen() {
         <Text className="font-mono text-xl font-black text-black">SETTINGS</Text>
       </View>
       <ScrollView contentContainerClassName="p-5 pb-10" keyboardShouldPersistTaps="handled">
-        
+        <View className="mb-10">
+          <Text className="font-mono text-xl font-black text-black mb-1.5">ABOUT ME</Text>
+          <View className="h-1 bg-black mb-5" />
+
+          <Text className="font-mono text-sm font-bold text-black mb-2">SEX</Text>
+          <View className="flex-row mb-5">
+            {[
+              { id: 'male', label: 'MALE' },
+              { id: 'nonbinary', label: 'OTHER' },
+              { id: 'female', label: 'FEMALE' },
+            ].map((option, index) => (
+              <Pressable
+                key={option.id}
+                className={`flex-1 border-2 border-black p-3 items-center ${index === 1 ? 'mx-2' : ''} ${gender === option.id ? 'bg-black' : 'bg-white'}`}
+                onPress={() => setGender(option.id)}
+              >
+                <Text className={`font-mono text-xs font-black ${gender === option.id ? 'text-white' : 'text-black'}`}>
+                  {option.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <View className="flex-row justify-between">
+            <View className="flex-1 mr-2.5 mb-5">
+              <Text className="font-mono text-sm font-bold text-black mb-2">AGE</Text>
+              <TextInput
+                className="font-mono border-2 border-black bg-white p-4 text-base text-black"
+                value={age}
+                onChangeText={setAge}
+                keyboardType="numeric"
+                placeholder="YRS"
+                placeholderTextColor="#999"
+              />
+            </View>
+            <View className="flex-1 mr-2.5 mb-5">
+              <Text className="font-mono text-sm font-bold text-black mb-2">WEIGHT (kg)</Text>
+              <TextInput
+                className="font-mono border-2 border-black bg-white p-4 text-base text-black"
+                value={weight}
+                onChangeText={setWeight}
+                keyboardType="numeric"
+                placeholder="80"
+                placeholderTextColor="#999"
+              />
+            </View>
+            <View className="flex-1 mb-5">
+              <Text className="font-mono text-sm font-bold text-black mb-2">HEIGHT (cm)</Text>
+              <TextInput
+                className="font-mono border-2 border-black bg-white p-4 text-base text-black"
+                value={height}
+                onChangeText={setHeight}
+                keyboardType="numeric"
+                placeholder="180"
+                placeholderTextColor="#999"
+              />
+            </View>
+          </View>
+
+          <Text className="font-mono text-xs font-bold text-black">
+            CHANGE YOUR WEIGHT HERE AND WE&apos;LL KEEP THE RECEIPTS FOR THE STATS GRAPH.
+          </Text>
+        </View>
+
         <View className="mb-10">
           <View className="flex-row justify-between items-end mb-1.5">
             <Text className="font-mono text-xl font-black text-black">MACRO GOALS</Text>

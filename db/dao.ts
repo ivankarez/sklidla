@@ -1,9 +1,12 @@
 import { getDb } from './database';
 import {
+  getWeightRangeStartDate,
   calculateLoggingStreak,
   calculateNutritionAverages,
   DailyNutritionTotals,
   NutritionAverages,
+  WeightHistoryPoint,
+  WeightTimeframe,
 } from './stats';
 
 export const getSetting = async (key: string): Promise<string | null> => {
@@ -20,6 +23,207 @@ export const setSetting = async (key: string, value: string): Promise<void> => {
   await db.runAsync(
     'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
     [key, value]
+  );
+};
+
+export interface UserProfile {
+  gender: string;
+  age: string;
+  weight: string;
+  height: string;
+  activityLevel: string;
+  goal: string;
+  dietaryPreference: string;
+}
+
+export interface MacroGoals {
+  calories: string;
+  protein: string;
+  carbs: string;
+  fats: string;
+}
+
+export interface SaveUserProfileOptions {
+  recordWeightHistory?: boolean;
+  recordedAt?: string;
+}
+
+export interface WeightLog {
+  id: number;
+  weight: number;
+  loggedAt: string;
+  loggedDate: string;
+}
+
+const DEFAULT_USER_PROFILE: UserProfile = {
+  gender: 'nonbinary',
+  age: '',
+  weight: '',
+  height: '',
+  activityLevel: 'sedentary',
+  goal: 'maintain',
+  dietaryPreference: 'meathead',
+};
+
+const DEFAULT_MACRO_GOALS: MacroGoals = {
+  calories: '2000',
+  protein: '150',
+  carbs: '200',
+  fats: '65',
+};
+
+const PROFILE_SETTING_KEYS = {
+  gender: 'bio_gender',
+  age: 'bio_age',
+  weight: 'bio_weight',
+  height: 'bio_height',
+  activityLevel: 'bio_activity',
+  goal: 'bio_goal',
+  dietaryPreference: 'bio_diet',
+} as const;
+
+const normalizeWeightValue = (value: string): number | null => {
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null;
+  }
+
+  return Number(parsed.toFixed(2));
+};
+
+export const getUserProfile = async (): Promise<UserProfile> => {
+  const [
+    gender,
+    age,
+    weight,
+    height,
+    activityLevel,
+    goal,
+    dietaryPreference,
+  ] = await Promise.all([
+    getSetting(PROFILE_SETTING_KEYS.gender),
+    getSetting(PROFILE_SETTING_KEYS.age),
+    getSetting(PROFILE_SETTING_KEYS.weight),
+    getSetting(PROFILE_SETTING_KEYS.height),
+    getSetting(PROFILE_SETTING_KEYS.activityLevel),
+    getSetting(PROFILE_SETTING_KEYS.goal),
+    getSetting(PROFILE_SETTING_KEYS.dietaryPreference),
+  ]);
+
+  return {
+    gender: gender ?? DEFAULT_USER_PROFILE.gender,
+    age: age ?? DEFAULT_USER_PROFILE.age,
+    weight: weight ?? DEFAULT_USER_PROFILE.weight,
+    height: height ?? DEFAULT_USER_PROFILE.height,
+    activityLevel: activityLevel ?? DEFAULT_USER_PROFILE.activityLevel,
+    goal: goal ?? DEFAULT_USER_PROFILE.goal,
+    dietaryPreference: dietaryPreference ?? DEFAULT_USER_PROFILE.dietaryPreference,
+  };
+};
+
+export const saveUserProfile = async (
+  profile: UserProfile,
+  options: SaveUserProfileOptions = {}
+): Promise<void> => {
+  const db = await getDb();
+  const previousWeight = await getSetting(PROFILE_SETTING_KEYS.weight);
+
+  await Promise.all([
+    setSetting(PROFILE_SETTING_KEYS.gender, profile.gender),
+    setSetting(PROFILE_SETTING_KEYS.age, profile.age),
+    setSetting(PROFILE_SETTING_KEYS.weight, profile.weight),
+    setSetting(PROFILE_SETTING_KEYS.height, profile.height),
+    setSetting(PROFILE_SETTING_KEYS.activityLevel, profile.activityLevel),
+    setSetting(PROFILE_SETTING_KEYS.goal, profile.goal),
+    setSetting(PROFILE_SETTING_KEYS.dietaryPreference, profile.dietaryPreference),
+  ]);
+
+  if (!options.recordWeightHistory) {
+    return;
+  }
+
+  const nextWeight = normalizeWeightValue(profile.weight);
+  const normalizedPreviousWeight = normalizeWeightValue(previousWeight ?? '');
+
+  if (nextWeight === null || nextWeight === normalizedPreviousWeight) {
+    return;
+  }
+
+  if (options.recordedAt) {
+    await db.runAsync(
+      'INSERT INTO weight_logs (weight, logged_at) VALUES (?, ?)',
+      [nextWeight, options.recordedAt]
+    );
+    return;
+  }
+
+  await db.runAsync(
+    'INSERT INTO weight_logs (weight) VALUES (?)',
+    [nextWeight]
+  );
+};
+
+export const getMacroGoals = async (): Promise<MacroGoals> => {
+  const [calories, protein, carbs, fats] = await Promise.all([
+    getSetting('goal_calories'),
+    getSetting('goal_protein'),
+    getSetting('goal_carbs'),
+    getSetting('goal_fats'),
+  ]);
+
+  return {
+    calories: calories ?? DEFAULT_MACRO_GOALS.calories,
+    protein: protein ?? DEFAULT_MACRO_GOALS.protein,
+    carbs: carbs ?? DEFAULT_MACRO_GOALS.carbs,
+    fats: fats ?? DEFAULT_MACRO_GOALS.fats,
+  };
+};
+
+export const saveMacroGoals = async (goals: MacroGoals): Promise<void> => {
+  await Promise.all([
+    setSetting('goal_calories', goals.calories || DEFAULT_MACRO_GOALS.calories),
+    setSetting('goal_protein', goals.protein || DEFAULT_MACRO_GOALS.protein),
+    setSetting('goal_carbs', goals.carbs || DEFAULT_MACRO_GOALS.carbs),
+    setSetting('goal_fats', goals.fats || DEFAULT_MACRO_GOALS.fats),
+  ]);
+};
+
+export const getWeightHistory = async (
+  timeframe: WeightTimeframe,
+  referenceDate: Date = new Date()
+): Promise<WeightHistoryPoint[]> => {
+  const db = await getDb();
+  const startDate = getWeightRangeStartDate(timeframe, referenceDate);
+
+  const rows = await db.getAllAsync<{
+    id: number;
+    weight: number;
+    logged_at: string;
+    logged_date: string;
+  }>(
+    `SELECT
+       id,
+       weight,
+       logged_at,
+       date(logged_at, 'localtime') AS logged_date
+     FROM weight_logs
+     WHERE (? IS NULL OR date(logged_at, 'localtime') >= ?)
+     ORDER BY logged_at ASC, id ASC`,
+    [startDate, startDate]
+  );
+
+  const latestEntryByDay = new Map<string, WeightHistoryPoint>();
+
+  rows.forEach((row) => {
+    latestEntryByDay.set(row.logged_date, {
+      loggedDate: row.logged_date,
+      loggedAt: row.logged_at,
+      weight: row.weight,
+    });
+  });
+
+  return Array.from(latestEntryByDay.values()).sort((left, right) =>
+    left.loggedDate.localeCompare(right.loggedDate)
   );
 };
 

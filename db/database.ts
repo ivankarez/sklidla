@@ -51,5 +51,23 @@ export const initDb = async () => {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS weight_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      weight REAL NOT NULL,
+      logged_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_weight_logs_logged_at ON weight_logs (logged_at);
   `);
+
+  await database.runAsync(
+    `INSERT INTO weight_logs (weight)
+     SELECT CAST(s.value AS REAL)
+     FROM settings s
+     WHERE s.key = 'bio_weight'
+       AND TRIM(s.value) != ''
+       AND CAST(s.value AS REAL) > 0
+       AND NOT EXISTS (SELECT 1 FROM weight_logs)`,
+  );
 };

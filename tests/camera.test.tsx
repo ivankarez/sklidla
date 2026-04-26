@@ -146,6 +146,19 @@ describe('camera screen', () => {
     });
   });
 
+  it('renders the shared bottom scanner controls for the active mode', () => {
+    (expoRouter as any).__setLocalSearchParams({
+      mode: 'auto',
+    });
+
+    render(<CameraScreen />);
+
+    expect(screen.getByText('[ CANCEL ]')).toBeTruthy();
+    expect(screen.getByText('AUTO SCANNER')).toBeTruthy();
+    expect(screen.getByText('FLASH')).toBeTruthy();
+    expect(screen.getByText('CAMERA')).toBeTruthy();
+  });
+
   it('restores the previous add-food draft when aborting from manual entry', async () => {
     const router = (expoRouter as any).__routerMock;
 
@@ -166,7 +179,7 @@ describe('camera screen', () => {
 
     render(<CameraScreen />);
 
-    fireEvent.click(screen.getByText('ABORT'));
+    fireEvent.click(screen.getByText('[ CANCEL ]'));
 
     expect(router.replace).toHaveBeenCalledWith({
       pathname: '/manual-entry',
@@ -181,6 +194,35 @@ describe('camera screen', () => {
         returnTo: 'log',
       },
     });
+  });
+
+  it('shows the processing spinner while AI is processing', async () => {
+    (expoRouter as any).__setLocalSearchParams({
+      mode: 'auto',
+    });
+
+    cameraMocks.takePictureAsync.mockResolvedValue({
+      uri: 'file://lunch.jpg',
+      width: 1200,
+      height: 1200,
+    });
+    cameraMocks.manipulateAsync.mockResolvedValue({
+      uri: 'file://lunch-resized.jpg',
+      width: 1200,
+      height: 1200,
+      base64: 'BASE64',
+    });
+    cameraMocks.processFoodImage.mockImplementation(() => new Promise(() => {}));
+
+    render(<CameraScreen />);
+
+    fireEvent.click(screen.getByTestId('capture-photo-cta'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('camera-processing-state')).toBeTruthy();
+    });
+
+    expect(screen.getByTestId('camera-processing-spinner')).toBeTruthy();
   });
 
   it('opens the camera with replace and preserves the current add-food draft', async () => {

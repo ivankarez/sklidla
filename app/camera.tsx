@@ -3,17 +3,25 @@ import { Image } from '@/src/tw/image';
 import { CameraType, CameraView, FlashMode, useCameraPermissions } from 'expo-camera';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
-import { Alert } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, type LayoutChangeEvent, useColorScheme } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { addFood } from '../db/dao';
 import { processFoodImage } from '../utils/ai';
 
 const CAMERA_DEBUG_PREFIX = '[Camera]';
 const AI_UPLOAD_MAX_DIMENSION = 1600;
+const PROCESSING_MESSAGES = [
+  'ASKING THE ROBOT WHAT YOU ATE...',
+  'DOING EXTREMELY SERIOUS SNACK SCIENCE...',
+  'INTERROGATING THE PIXELS...',
+  'COUNTING CHAOS CALORIES...',
+];
+const PROCESSING_MESSAGE_ROTATION_MS = 3200;
+const PROCESSING_TYPEWRITER_STEP_MS = 40;
 
 export default function CameraScreen() {
   const router = useRouter();
-  const processingMessages = ['THINKING...', 'ONE SEC...', 'READING THAT NOW...'];
   const { mode, source, nameHint, brandHint, returnParams } = useLocalSearchParams<{
     mode: 'meal' | 'label' | 'auto';
     source?: string;
@@ -23,11 +31,57 @@ export default function CameraScreen() {
   }>();
   const [permission, requestPermission] = useCameraPermissions();
   const [isProcessing, setIsProcessing] = useState(false);
-  const [processingMessage, setProcessingMessage] = useState(processingMessages[0]);
+  const [processingMessageIndex, setProcessingMessageIndex] = useState(0);
+  const [displayedProcessingMessage, setDisplayedProcessingMessage] = useState('');
   const [cameraFacing, setCameraFacing] = useState<CameraType>('back');
   const [flashMode, setFlashMode] = useState<FlashMode>('off');
   const [capturedImageUri, setCapturedImageUri] = useState<string | null>(null);
+  const [headerSideWidth, setHeaderSideWidth] = useState(96);
   const cameraRef = useRef<CameraView>(null);
+  const insets = useSafeAreaInsets();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  const scannerTitle = mode === 'label' ? 'LABEL SCANNER' : mode === 'auto' ? 'AUTO SCANNER' : 'MEAL SCANNER';
+  const shellBackground = isDark ? '#000000' : '#FFFFFF';
+  const shellBorder = isDark ? '#FFFFFF' : '#000000';
+  const shellText = isDark ? '#FFFFFF' : '#000000';
+  const controlBackground = isDark ? '#FFFFFF' : '#000000';
+  const controlText = isDark ? '#000000' : '#FFFFFF';
+
+  useEffect(() => {
+    if (!isProcessing) {
+      setProcessingMessageIndex(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setProcessingMessageIndex((current) => (current + 1) % PROCESSING_MESSAGES.length);
+    }, PROCESSING_MESSAGE_ROTATION_MS);
+
+    return () => clearInterval(interval);
+  }, [isProcessing]);
+
+  useEffect(() => {
+    if (!isProcessing) {
+      setDisplayedProcessingMessage('');
+      return;
+    }
+
+    const nextMessage = PROCESSING_MESSAGES[processingMessageIndex];
+    let characterIndex = 0;
+    setDisplayedProcessingMessage('');
+
+    const interval = setInterval(() => {
+      characterIndex += 1;
+      setDisplayedProcessingMessage(nextMessage.slice(0, characterIndex));
+
+      if (characterIndex >= nextMessage.length) {
+        clearInterval(interval);
+      }
+    }, PROCESSING_TYPEWRITER_STEP_MS);
+
+    return () => clearInterval(interval);
+  }, [isProcessing, processingMessageIndex]);
 
   const toPositiveNumber = (value: unknown): number | null => {
     const numeric = Number(value);
@@ -101,19 +155,31 @@ export default function CameraScreen() {
     });
   };
 
+  const handleCancel = () => {
+    if (source === 'manual-entry') {
+      router.replace({
+        pathname: '/manual-entry',
+        params: manualEntryReturnParams,
+      });
+      return;
+    }
+
+    router.back();
+  };
+
   if (!permission) {
     return <View />;
   }
 
   if (!permission.granted) {
     return (
-      <SafeAreaView className="flex-1 bg-black justify-center">
-        <Text className="font-mono text-center mb-4 text-white">WE NEED CAMERA ACCESS TO SCAN FOOD AND LABELS.</Text>
-        <Text className="font-mono text-center mb-5 mx-8 text-white">
+      <SafeAreaView className="flex-1 justify-center" style={{ backgroundColor: shellBackground }}>
+        <Text className="font-mono text-center mb-4" style={{ color: shellText }}>WE NEED CAMERA ACCESS TO SCAN FOOD AND LABELS.</Text>
+        <Text className="font-mono text-center mb-5 mx-8" style={{ color: shellText }}>
           IF YOU USE AI SCANS, THE CAPTURED IMAGE CAN GO STRAIGHT TO YOUR SELECTED AI PROVIDER.
         </Text>
-        <Pressable className="bg-white p-4 mx-10 items-center" onPress={requestPermission}>
-          <Text className="font-mono font-black text-black">GRANT ACCESS</Text>
+        <Pressable className="p-4 mx-10 items-center" onPress={requestPermission} style={{ backgroundColor: controlBackground }}>
+          <Text className="font-mono font-black" style={{ color: controlText }}>GRANT ACCESS</Text>
         </Pressable>
       </SafeAreaView>
     );
@@ -129,7 +195,7 @@ export default function CameraScreen() {
         hasNameHint: typeof nameHint === 'string' && nameHint.trim().length > 0,
         hasBrandHint: typeof brandHint === 'string' && brandHint.trim().length > 0,
       });
-      setProcessingMessage(processingMessages[Math.floor(Math.random() * processingMessages.length)]);
+      setProcessingMessageIndex(Math.floor(Math.random() * PROCESSING_MESSAGES.length));
       setIsProcessing(true);
       const photo = await cameraRef.current.takePictureAsync({ base64: false, quality: 1, shutterSound: false });
       if (!photo?.uri) throw new Error('No image data');
@@ -249,7 +315,7 @@ export default function CameraScreen() {
   };
 
   return (
-    <View className="flex-1 bg-black">
+    <View className="flex-1" style={{ backgroundColor: shellBackground }}>
       <CameraView
         facing={cameraFacing}
         flash={flashMode}
@@ -266,71 +332,88 @@ export default function CameraScreen() {
       )}
 
       <SafeAreaView
-        className="flex-1 bg-transparent justify-between p-5"
-        edges={['top', 'bottom']}
+        className="flex-1 bg-transparent"
+        edges={['top']}
         style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}
       >
-        <View className="flex-row justify-between items-center">
-          <Pressable
-            onPress={() => {
-              if (source === 'manual-entry') {
-                router.replace({
-                  pathname: '/manual-entry',
-                  params: manualEntryReturnParams,
-                });
-                return;
-              }
+        <View className="px-5 pt-4">
+          <View className="px-4 py-3 flex-row items-center" style={{ backgroundColor: shellBackground, borderColor: shellBorder, borderWidth: 2 }}>
+            <Pressable
+              onPress={handleCancel}
+              onLayout={(event: LayoutChangeEvent) => setHeaderSideWidth(Math.ceil(event.nativeEvent.layout.width))}
+              disabled={isProcessing}
+              className={isProcessing ? 'opacity-50' : ''}
+            >
+              <Text className="font-mono text-sm font-bold" style={{ color: shellText }}>[ CANCEL ]</Text>
+            </Pressable>
 
-              router.back();
-            }}
-            className="bg-white px-2.5 py-1.5"
-          >
-            <Text className="font-mono text-sm font-black text-black">ABORT</Text>
-          </Pressable>
-          <Text className="font-mono text-base font-black text-white bg-black px-2.5 py-1.5">
-            {mode === 'label' ? 'LABEL SCANNER' : mode === 'auto' ? 'AUTO SCANNER' : 'MEAL SCANNER'}
-          </Text>
-          <Pressable
-            onPress={() => setCameraFacing((current) => (current === 'back' ? 'front' : 'back'))}
-            className="bg-white px-2.5 py-1.5"
-            disabled={isProcessing}
-          >
-            <Text className="font-mono text-sm font-black text-black">FLIP</Text>
-          </Pressable>
-        </View>
+            <View className="flex-1 items-center justify-center px-2">
+              <Text className="font-mono text-base font-black text-center" style={{ color: shellText }} numberOfLines={1}>
+                {scannerTitle}
+              </Text>
+            </View>
 
-        <View className="self-center w-60 h-60 relative">
-          <View className="absolute top-0 left-0 w-10 h-10 border-t-4 border-l-4 border-white" />
-          <View className="absolute top-0 right-0 w-10 h-10 border-t-4 border-r-4 border-white" />
-          <View className="absolute bottom-0 left-0 w-10 h-10 border-b-4 border-l-4 border-white" />
-          <View className="absolute bottom-0 right-0 w-10 h-10 border-b-4 border-r-4 border-white" />
-        </View>
-
-        <View className="self-center flex-row gap-2.5 mb-4">
-          <Pressable
-            onPress={() => setFlashMode((current) => (current === 'off' ? 'on' : 'off'))}
-            className="bg-white px-3 py-2"
-            disabled={isProcessing}
-          >
-            <Text className="font-mono text-sm font-black text-black">
-              FLASH {flashMode === 'on' ? 'ON' : 'OFF'}
-            </Text>
-          </Pressable>
-        </View>
-
-        {isProcessing ? (
-          <View className="self-center bg-white p-5 mb-6">
-            <Text className="font-mono text-xl font-black text-black">{processingMessage}</Text>
+            <View style={{ width: headerSideWidth }} />
           </View>
-        ) : (
-          <Pressable
-            testID="capture-photo-cta"
-            className="self-center w-20 h-20 rounded-full bg-white justify-center items-center mb-6"
-            onPress={handleCapture}
-          >
-            <View className="w-17.5 h-17.5 rounded-full border-4 border-black" />
-          </Pressable>
-        )}
+        </View>
+
+        <View className="flex-1 justify-center px-5">
+          <View className="self-center w-60 h-60 relative">
+            <View className="absolute top-0 left-0 w-10 h-10 border-t-4 border-l-4" style={{ borderColor: shellBorder }} />
+            <View className="absolute top-0 right-0 w-10 h-10 border-t-4 border-r-4" style={{ borderColor: shellBorder }} />
+            <View className="absolute bottom-0 left-0 w-10 h-10 border-b-4 border-l-4" style={{ borderColor: shellBorder }} />
+            <View className="absolute bottom-0 right-0 w-10 h-10 border-b-4 border-r-4" style={{ borderColor: shellBorder }} />
+          </View>
+        </View>
+
+        <View className="border-t-4" style={{ backgroundColor: shellBackground, borderColor: shellBorder, paddingBottom: Math.max(insets.bottom, 16) }}>
+          <View className="px-5 pt-5">
+            {isProcessing ? (
+              <View testID="camera-processing-state" className="items-center pt-5 pb-3 min-h-36">
+                <ActivityIndicator testID="camera-processing-spinner" size="small" color={shellText} />
+                <View className="mt-4 h-16 justify-start items-center px-2">
+                  <Text className="font-mono text-lg font-black text-center leading-6" style={{ color: shellText }}>
+                    {displayedProcessingMessage}
+                    {displayedProcessingMessage.length < PROCESSING_MESSAGES[processingMessageIndex].length ? '|' : ''}
+                  </Text>
+                </View>
+              </View>
+            ) : (
+              <View className="flex-row items-center justify-between">
+                <Pressable
+                  onPress={() => setFlashMode((current) => (current === 'off' ? 'on' : 'off'))}
+                  className="px-4 py-3 min-w-24"
+                  style={{ backgroundColor: controlBackground }}
+                  disabled={isProcessing}
+                >
+                  <Text className="font-mono text-xs font-black text-center" style={{ color: controlText }}>FLASH</Text>
+                  <Text className="font-mono text-sm font-black text-center mt-1" style={{ color: controlText }}>
+                    {flashMode === 'on' ? 'ON' : 'OFF'}
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  testID="capture-photo-cta"
+                  className="w-22 h-22 rounded-full border-4 justify-center items-center"
+                  style={{ borderColor: shellBorder, backgroundColor: shellBackground }}
+                  onPress={handleCapture}
+                >
+                  <View className="w-14 h-14 rounded-full" style={{ backgroundColor: controlBackground }} />
+                </Pressable>
+
+                <Pressable
+                  onPress={() => setCameraFacing((current) => (current === 'back' ? 'front' : 'back'))}
+                  className="px-4 py-3 min-w-24"
+                  style={{ backgroundColor: controlBackground }}
+                  disabled={isProcessing}
+                >
+                  <Text className="font-mono text-xs font-black text-center" style={{ color: controlText }}>CAMERA</Text>
+                  <Text className="font-mono text-sm font-black text-center mt-1" style={{ color: controlText }}>FLIP</Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
+        </View>
       </SafeAreaView>
     </View>
   );

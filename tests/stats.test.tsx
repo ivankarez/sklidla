@@ -1,13 +1,26 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import * as dao from '@/db/dao';
-import { calculateLoggingStreak, calculateNutritionAverages } from '@/db/stats';
+import {
+  buildSvgLinePath,
+  buildWeightChartPoints,
+  calculateLoggingStreak,
+  calculateNutritionAverages,
+  summarizeWeightChange,
+} from '@/db/stats';
 import * as expoRouter from 'expo-router';
 import StatsScreen from '../app/(tabs)/stats';
 
 const createLoggedAt = (daysAgo: number) => {
   const date = new Date();
   date.setHours(12, 0, 0, 0);
+  date.setDate(date.getDate() - daysAgo);
+  return date.toISOString();
+};
+
+const createWeightLoggedAt = (daysAgo: number, hour: number = 8) => {
+  const date = new Date();
+  date.setHours(hour, 0, 0, 0);
   date.setDate(date.getDate() - daysAgo);
   return date.toISOString();
 };
@@ -51,6 +64,26 @@ describe('statistics helpers', () => {
       averageFats: 15,
       daysLogged: 2,
     });
+  });
+
+  it('summarizes and charts weight history', () => {
+    const points = [
+      { loggedDate: '2026-04-01', loggedAt: '2026-04-01T08:00:00.000Z', weight: 82 },
+      { loggedDate: '2026-04-05', loggedAt: '2026-04-05T08:00:00.000Z', weight: 80 },
+      { loggedDate: '2026-04-10', loggedAt: '2026-04-10T08:00:00.000Z', weight: 79.5 },
+    ];
+
+    expect(summarizeWeightChange(points)).toEqual({
+      startWeight: 82,
+      endWeight: 79.5,
+      change: -2.5,
+    });
+
+    const chartPoints = buildWeightChartPoints(points, 320, 180, 16);
+    expect(chartPoints).toHaveLength(3);
+    expect(chartPoints[0].x).toBeLessThan(chartPoints[2].x);
+    expect(chartPoints[0].y).toBeLessThan(chartPoints[2].y);
+    expect(buildSvgLinePath(chartPoints)).toMatch(/^M /);
   });
 });
 
@@ -128,10 +161,21 @@ describe('statistics screen', () => {
         name: 'OLD FOOD',
       },
     ]);
+    (dao as any).__setMockWeightLogs([
+      { id: 1, weight: 81.4, logged_at: createWeightLoggedAt(40) },
+      { id: 2, weight: 80.8, logged_at: createWeightLoggedAt(9) },
+      { id: 3, weight: 80.1, logged_at: createWeightLoggedAt(1) },
+      { id: 4, weight: 79.8, logged_at: createWeightLoggedAt(0, 7) },
+      { id: 5, weight: 79.6, logged_at: createWeightLoggedAt(0, 18) },
+    ]);
 
     render(<StatsScreen />);
 
     await waitFor(() => {
+      expect(screen.getByText('WEIGHT TREND')).toBeTruthy();
+      expect(screen.getByText('LATEST WEIGHT')).toBeTruthy();
+      expect(screen.getByText('79.6')).toBeTruthy();
+      expect(screen.getByText('TOTAL CHANGE: DOWN 1.2 KG')).toBeTruthy();
       expect(screen.getByText('CURRENT STREAK')).toBeTruthy();
       expect(screen.getByText('3')).toBeTruthy();
       expect(screen.getByText('AVERAGED ACROSS 4 LOGGED DAYS')).toBeTruthy();
@@ -139,6 +183,32 @@ describe('statistics screen', () => {
       expect(screen.getByText('37.5')).toBeTruthy();
       expect(screen.getByText('45')).toBeTruthy();
       expect(screen.getByText('20')).toBeTruthy();
+    });
+  });
+
+  it('switches the weight range buttons', async () => {
+    (dao as any).__setMockWeightLogs([
+      { id: 1, weight: 90, logged_at: createWeightLoggedAt(380) },
+      { id: 2, weight: 88, logged_at: createWeightLoggedAt(200) },
+      { id: 3, weight: 84, logged_at: createWeightLoggedAt(5) },
+    ]);
+
+    render(<StatsScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByText('ONLY ONE DATA POINT. CHANGE COMES LATER.')).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByText('1Y'));
+
+    await waitFor(() => {
+      expect(screen.getByText('TOTAL CHANGE: DOWN 4 KG')).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByText('ALL'));
+
+    await waitFor(() => {
+      expect(screen.getByText('TOTAL CHANGE: DOWN 6 KG')).toBeTruthy();
     });
   });
 });

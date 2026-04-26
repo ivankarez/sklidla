@@ -36,6 +36,7 @@ Sklidla is trying a different approach:
 - **Immutable history:** old log entries keep the saved macro totals even if the base food changes later
 - **Camera flows:** scan a meal photo or nutrition label, then verify before saving
 - **Macro setup:** onboarding includes a calculator for calorie and macro goals
+- **Weight tracking:** current weight lives in your profile and gets charted over time in Stats
 - **Settings vault:** theme, goals, AI toggle, provider choice, and encrypted local key storage
 
 ## Privacy model

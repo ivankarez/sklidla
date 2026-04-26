@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { useColorScheme } from 'react-native';
-import { setSetting } from '@/db/dao';
+import { saveMacroGoals, saveUserProfile } from '@/db/dao';
 import { Pressable, Text, View } from '@/src/tw';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MacroCalculator } from '@/src/components/macro-calculator';
@@ -59,17 +59,15 @@ export default function MacroSetupScreen() {
         onCalculated={async ({ calories, protein, carbs, fats, profile }) => {
           setSaving(true);
           try {
-            await setSetting('goal_calories', calories.toString());
-            await setSetting('goal_protein', protein.toString());
-            await setSetting('goal_carbs', carbs.toString());
-            await setSetting('goal_fats', fats.toString());
-            await setSetting('bio_gender', profile.gender);
-            await setSetting('bio_age', profile.age);
-            await setSetting('bio_weight', profile.weight);
-            await setSetting('bio_height', profile.height);
-            await setSetting('bio_activity', profile.activityLevel);
-            await setSetting('bio_goal', profile.goal);
-            await setSetting('bio_diet', profile.dietaryPreference);
+            await Promise.all([
+              saveMacroGoals({
+                calories: calories.toString(),
+                protein: protein.toString(),
+                carbs: carbs.toString(),
+                fats: fats.toString(),
+              }),
+              saveUserProfile(profile, { recordWeightHistory: true }),
+            ]);
             router.push('/onboarding/ai-setup');
           } finally {
             setSaving(false);

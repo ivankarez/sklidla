@@ -30,6 +30,7 @@ Sklidla is trying a different approach:
 ## What it does today
 
 - **Dashboard / ledger:** big calorie count, macro progress bars, daily history
+- **Activity logging:** add walking, running, cycling, or other activities and optionally count 0%, 50%, or 100% of burned calories toward your daily target
 - **Food library:** search foods, edit foods, add foods manually
 - **Serving sizes:** store units like slices, scoops, cups, pieces
 - **Meal logging:** pick a food, set amount/unit, save hard macros to the log
@@ -43,7 +44,7 @@ Sklidla is trying a different approach:
 
 Sklidla is built around **local-first storage**:
 
-- food data, settings, and logs are stored in **SQLite**
+- food data, activity logs, settings, and nutrition logs are stored in **SQLite**
 - API keys are stored in **`expo-secure-store`**
 - there is **no project backend**
 - AI calls go straight from your device to the provider you choose

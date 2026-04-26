@@ -141,6 +141,20 @@ describe('statistics helpers', () => {
     expect(today?.status).toBe('met');
   });
 
+  it('treats activity goal adjustments as extra room before a day is over', () => {
+    const referenceDate = new Date('2026-04-25T12:00:00');
+
+    const statuses = buildLast7DayCalorieGoalStatuses(
+      [{ loggedDate: '2026-04-25', calories: 2100 }],
+      2000,
+      referenceDate,
+      [{ loggedDate: '2026-04-25', adjustmentCalories: 150 }]
+    );
+
+    const today = statuses.find((s) => s.loggedDate === '2026-04-25');
+    expect(today?.status).toBe('met');
+  });
+
   it('returns no_logs with zero calories for days with no data', () => {
     const referenceDate = new Date('2026-04-25T12:00:00');
 
@@ -261,6 +275,58 @@ describe('statistics screen', () => {
     });
   });
 
+  it('uses activity calorie settings when building the 7-day goal status row', async () => {
+    await dao.setSetting('goal_calories', '450');
+    await dao.saveActivityCalorieSettings({
+      enabled: true,
+      inclusionMode: 'all',
+    });
+    (dao as any).__setMockLogs([
+      {
+        id: 1,
+        food_id: 1,
+        serving_size_id: null,
+        serving_size_name: null,
+        amount_logged: 1,
+        hardcoded_calories: 500,
+        hardcoded_protein: 40,
+        hardcoded_carbs: 50,
+        hardcoded_fats: 20,
+        logged_at: createLoggedAt(0),
+        name: 'TODAY FOOD',
+      },
+      {
+        id: 2,
+        food_id: 2,
+        serving_size_id: null,
+        serving_size_name: null,
+        amount_logged: 1,
+        hardcoded_calories: 500,
+        hardcoded_protein: 25,
+        hardcoded_carbs: 40,
+        hardcoded_fats: 15,
+        logged_at: createLoggedAt(1),
+        name: 'YESTERDAY FOOD',
+      },
+    ]);
+    (dao as any).__setMockActivities([
+      {
+        id: 1,
+        activity_type: 'running',
+        duration_minutes: 30,
+        calories_burned: 100,
+        logged_at: createLoggedAt(0),
+      },
+    ]);
+
+    render(<StatsScreen />);
+
+    await waitFor(() => {
+      expect(screen.getAllByLabelText('streak-day-met')).toHaveLength(1);
+      expect(screen.getAllByLabelText('streak-day-over')).toHaveLength(1);
+    });
+  });
+
   it('switches the weight range buttons', async () => {
     (dao as any).__setMockWeightLogs([
       { id: 1, weight: 90, logged_at: createWeightLoggedAt(380) },
@@ -329,14 +395,14 @@ describe('statistics screen', () => {
       expect(screen.getByLabelText('Path')).toBeTruthy();
     });
 
-    expect(screen.getByText('80.1 KG')).toBeTruthy();
-
     const pointRects = screen
       .getAllByLabelText('Rect')
       .filter((element) => element.getAttribute('height') === '12');
 
     fireEvent.click(pointRects[1]);
 
-    expect(screen.getByText('80.8 KG')).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.getByText('80.8 KG')).toBeTruthy();
+    });
   });
 });

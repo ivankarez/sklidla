@@ -22,11 +22,11 @@ describe('settings screen', () => {
       expect(dao.setSetting).toHaveBeenCalledWith('ai_provider', 'OpenRouter');
       expect(dao.setSetting).toHaveBeenCalledWith('theme_preference', 'system');
       expect(dao.saveActivityCalorieSettings).toHaveBeenCalledWith({
-        enabled: false,
+        enabled: true,
         inclusionMode: 'half',
       });
       expect(dao.saveWaterTrackingSettings).toHaveBeenCalledWith({
-        enabled: false,
+        enabled: true,
         stepAmountMl: 250,
       });
       expect(dao.saveMacroGoals).toHaveBeenCalled();
@@ -41,7 +41,6 @@ describe('settings screen', () => {
       expect(screen.getByText('ACTIVITY CALORIES')).toBeTruthy();
     });
 
-    fireEvent.click(screen.getByText('SHOW ACTIVITIES'));
     fireEvent.click(screen.getByText('INCLUDE ALL'));
 
     await waitFor(() => {
@@ -59,7 +58,6 @@ describe('settings screen', () => {
       expect(screen.getByText('WATER TRACKING')).toBeTruthy();
     });
 
-    fireEvent.click(screen.getByText('SHOW WATER TRACKER'));
     fireEvent.click(screen.getByText('300 ML'));
 
     await waitFor(() => {

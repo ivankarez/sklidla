@@ -100,12 +100,12 @@ const DEFAULT_MACRO_GOALS: MacroGoals = {
 };
 
 const DEFAULT_ACTIVITY_CALORIE_SETTINGS: ActivityCalorieSettings = {
-  enabled: false,
+  enabled: true,
   inclusionMode: 'half',
 };
 
 const DEFAULT_WATER_TRACKING_SETTINGS: WaterTrackingSettings = {
-  enabled: false,
+  enabled: true,
   stepAmountMl: 250,
 };
 

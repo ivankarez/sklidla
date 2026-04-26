@@ -182,7 +182,7 @@ const getMockActivityCalorieSettings = () => {
       : 'half';
 
   return {
-    enabled: (mockSettings.get('activity_calorie_adjustment_enabled') ?? 'false') === 'true',
+    enabled: (mockSettings.get('activity_calorie_adjustment_enabled') ?? 'true') === 'true',
     inclusionMode: normalizedInclusionMode,
   };
 };
@@ -194,7 +194,7 @@ const getMockWaterTrackingSettings = () => {
     : 250;
 
   return {
-    enabled: (mockSettings.get('water_tracking_enabled') ?? 'false') === 'true',
+    enabled: (mockSettings.get('water_tracking_enabled') ?? 'true') === 'true',
     stepAmountMl: normalizedStepAmount,
   };
 };

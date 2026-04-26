@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as dao from '@/db/dao';
 import {
   buildSvgLinePath,
@@ -9,6 +9,7 @@ import {
   summarizeWeightChange,
 } from '@/db/stats';
 import * as expoRouter from 'expo-router';
+import * as reactNative from 'react-native';
 import StatsScreen from '../app/(tabs)/stats';
 
 const createLoggedAt = (daysAgo: number) => {
@@ -173,8 +174,8 @@ describe('statistics screen', () => {
 
     await waitFor(() => {
       expect(screen.getByText('WEIGHT TREND')).toBeTruthy();
-      expect(screen.getByText('LATEST WEIGHT')).toBeTruthy();
-      expect(screen.getByText('79.6')).toBeTruthy();
+      expect(screen.queryByText('LATEST WEIGHT')).toBeNull();
+      expect(screen.getByText('79.6 KG')).toBeTruthy();
       expect(screen.getByText('TOTAL CHANGE: DOWN 1.2 KG')).toBeTruthy();
       expect(screen.getByText('CURRENT STREAK')).toBeTruthy();
       expect(screen.getByText('3')).toBeTruthy();
@@ -201,14 +202,67 @@ describe('statistics screen', () => {
 
     fireEvent.click(screen.getByText('1Y'));
 
+    expect(screen.queryByText('COUNTING THE CHAOS...')).toBeNull();
+
     await waitFor(() => {
       expect(screen.getByText('TOTAL CHANGE: DOWN 4 KG')).toBeTruthy();
     });
 
     fireEvent.click(screen.getByText('ALL'));
 
+    expect(screen.queryByText('COUNTING THE CHAOS...')).toBeNull();
+
     await waitFor(() => {
       expect(screen.getByText('TOTAL CHANGE: DOWN 6 KG')).toBeTruthy();
     });
+  });
+
+  it('uses white chart strokes in dark mode', async () => {
+    vi.spyOn(reactNative, 'useColorScheme').mockReturnValue('dark');
+    (dao as any).__setMockWeightLogs([
+      { id: 1, weight: 81.4, logged_at: createWeightLoggedAt(5) },
+      { id: 2, weight: 80.8, logged_at: createWeightLoggedAt(3) },
+      { id: 3, weight: 80.1, logged_at: createWeightLoggedAt(1) },
+    ]);
+
+    render(<StatsScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Path')).toBeTruthy();
+    });
+
+    const path = screen.getByLabelText('Path');
+    const points = screen.getAllByLabelText('Rect');
+
+    expect(path.getAttribute('stroke')).toBe('#FFFFFF');
+    expect(screen.queryByLabelText('Line')).toBeNull();
+    expect(points).not.toHaveLength(0);
+    points.forEach((point) => {
+      expect(point.getAttribute('fill')).toBe('#FFFFFF');
+    });
+  });
+
+  it('shows the exact weight when a chart point is clicked', async () => {
+    (dao as any).__setMockWeightLogs([
+      { id: 1, weight: 81.4, logged_at: createWeightLoggedAt(5) },
+      { id: 2, weight: 80.8, logged_at: createWeightLoggedAt(3) },
+      { id: 3, weight: 80.1, logged_at: createWeightLoggedAt(1) },
+    ]);
+
+    render(<StatsScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Path')).toBeTruthy();
+    });
+
+    expect(screen.getByText('80.1 KG')).toBeTruthy();
+
+    const pointRects = screen
+      .getAllByLabelText('Rect')
+      .filter((element) => element.getAttribute('height') === '12');
+
+    fireEvent.click(pointRects[1]);
+
+    expect(screen.getByText('80.8 KG')).toBeTruthy();
   });
 });

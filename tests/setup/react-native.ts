@@ -245,11 +245,15 @@ vi.mock('@expo/vector-icons', async () => {
 });
 
 vi.mock('react-native-svg', async () => {
-  const reactNative = await import('react-native');
-
   const createSvgComponent = (displayName) => {
-    const Component = ({ children, ...props }) =>
-      React.createElement(reactNative.View, { ...props, accessibilityLabel: displayName }, children);
+    const Component = ({ children, ...props }) => {
+      const { onPress, ...restProps } = props;
+      return React.createElement(
+        'div',
+        { ...restProps, onClick: onPress, 'aria-label': displayName },
+        children
+      );
+    };
     Component.displayName = displayName;
     return Component;
   };
@@ -260,6 +264,7 @@ vi.mock('react-native-svg', async () => {
     Line: createSvgComponent('Line'),
     Path: createSvgComponent('Path'),
     Rect: createSvgComponent('Rect'),
+    Text: createSvgComponent('SvgText'),
   };
 });
 

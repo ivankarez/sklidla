@@ -1,20 +1,25 @@
 import { Pressable, SafeAreaView, Text, View } from '@/src/tw';
 import { Image } from '@/src/tw/image';
 import { CameraType, CameraView, FlashMode, useCameraPermissions } from 'expo-camera';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Alert } from 'react-native';
 import { addFood } from '../db/dao';
 import { processFoodImage } from '../utils/ai';
 
+const CAMERA_DEBUG_PREFIX = '[Camera]';
+const AI_UPLOAD_MAX_DIMENSION = 1600;
+
 export default function CameraScreen() {
   const router = useRouter();
   const processingMessages = ['THINKING...', 'ONE SEC...', 'READING THAT NOW...'];
-  const { mode, source, nameHint, brandHint } = useLocalSearchParams<{
+  const { mode, source, nameHint, brandHint, returnParams } = useLocalSearchParams<{
     mode: 'meal' | 'label' | 'auto';
     source?: string;
     nameHint?: string;
     brandHint?: string;
+    returnParams?: string;
   }>();
   const [permission, requestPermission] = useCameraPermissions();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -68,11 +73,24 @@ export default function CameraScreen() {
     return suggestions;
   };
 
+  const manualEntryReturnParams = (() => {
+    if (typeof returnParams !== 'string' || !returnParams.trim()) return {};
+
+    try {
+      const parsed = JSON.parse(returnParams);
+      return typeof parsed === 'object' && parsed !== null ? parsed : {};
+    } catch (error) {
+      console.warn(`${CAMERA_DEBUG_PREFIX} failed to parse manual entry return params`, error);
+      return {};
+    }
+  })();
+
   const pushToManualEntry = (result: any) => {
     const servingSuggestions = asServingSuggestions(result);
     router.replace({
       pathname: '/manual-entry',
       params: {
+        ...manualEntryReturnParams,
         name: result?.name || '',
         cals: asMetricString(result?.calories_per_100g),
         pro: asMetricString(result?.protein_per_100g),
@@ -103,28 +121,77 @@ export default function CameraScreen() {
 
   const handleCapture = async () => {
     if (!cameraRef.current) return;
+    const captureId = `capture-${Date.now()}`;
     try {
+      console.log(`${CAMERA_DEBUG_PREFIX} ${captureId} capture started`, {
+        mode,
+        source,
+        hasNameHint: typeof nameHint === 'string' && nameHint.trim().length > 0,
+        hasBrandHint: typeof brandHint === 'string' && brandHint.trim().length > 0,
+      });
       setProcessingMessage(processingMessages[Math.floor(Math.random() * processingMessages.length)]);
       setIsProcessing(true);
-      const photo = await cameraRef.current.takePictureAsync({ base64: true, quality: 1, shutterSound: false });
-      if (!photo?.base64) throw new Error('No image data');
+      const photo = await cameraRef.current.takePictureAsync({ base64: false, quality: 1, shutterSound: false });
+      if (!photo?.uri) throw new Error('No image data');
+      console.log(`${CAMERA_DEBUG_PREFIX} ${captureId} photo captured`, {
+        hasUri: Boolean(photo.uri),
+        width: photo.width,
+        height: photo.height,
+      });
       setCapturedImageUri(photo.uri);
-      await cameraRef.current.pausePreview();
 
+      const longestSide = Math.max(photo.width ?? 0, photo.height ?? 0);
+      const resizeAction =
+        longestSide > AI_UPLOAD_MAX_DIMENSION
+          ? photo.width && photo.height
+            ? photo.width >= photo.height
+              ? [{ resize: { width: AI_UPLOAD_MAX_DIMENSION } }]
+              : [{ resize: { height: AI_UPLOAD_MAX_DIMENSION } }]
+            : [{ resize: { width: AI_UPLOAD_MAX_DIMENSION } }]
+          : [];
+
+      console.log(`${CAMERA_DEBUG_PREFIX} ${captureId} preparing resized upload`, {
+        longestSide,
+        targetMaxDimension: AI_UPLOAD_MAX_DIMENSION,
+        willResize: resizeAction.length > 0,
+      });
+
+      const normalizedPhoto = await manipulateAsync(photo.uri, resizeAction, {
+        base64: true,
+        compress: 0.8,
+        format: SaveFormat.JPEG,
+      });
+      if (!normalizedPhoto.base64) throw new Error('No resized image data');
+
+      console.log(`${CAMERA_DEBUG_PREFIX} ${captureId} resized image ready`, {
+        width: normalizedPhoto.width,
+        height: normalizedPhoto.height,
+        imageBase64Length: normalizedPhoto.base64.length,
+      });
+
+      console.log(`${CAMERA_DEBUG_PREFIX} ${captureId} sending image to AI`);
       const result = await processFoodImage({
-        base64Image: photo.base64,
+        base64Image: normalizedPhoto.base64,
         nameHint: typeof nameHint === 'string' ? nameHint : undefined,
         brandHint: typeof brandHint === 'string' ? brandHint : undefined,
       });
       
       if (!result) {
-        await cameraRef.current.resumePreview();
+        console.warn(`${CAMERA_DEBUG_PREFIX} ${captureId} AI returned no result`);
         setCapturedImageUri(null);
         setIsProcessing(false);
         return;
       }
 
+      console.log(`${CAMERA_DEBUG_PREFIX} ${captureId} AI returned result`, {
+        detectionType: result.detection_type,
+        name: result.name,
+        estimatedWeight: result.estimated_weight_g,
+        servingCount: Array.isArray(result.serving_sizes) ? result.serving_sizes.length : 0,
+      });
+
       if (source === 'manual-entry') {
+        console.log(`${CAMERA_DEBUG_PREFIX} ${captureId} navigating back to manual entry`);
         pushToManualEntry(result);
         return;
       }
@@ -140,6 +207,10 @@ export default function CameraScreen() {
           fats_per_100g: asMetricNumber(result.fats_per_100g),
         });
 
+        console.log(`${CAMERA_DEBUG_PREFIX} ${captureId} navigating to verification`, {
+          foodId,
+          foodName: tempName,
+        });
         router.replace({ 
           pathname: '/verification', 
           params: { 
@@ -154,6 +225,7 @@ export default function CameraScreen() {
         });
       } else {
         // Label Mode
+        console.log(`${CAMERA_DEBUG_PREFIX} ${captureId} navigating to manual entry for label result`);
         router.replace({
           pathname: '/manual-entry',
           params: {
@@ -169,11 +241,8 @@ export default function CameraScreen() {
       }
 
     } catch (e) {
-      console.error(e);
+      console.error(`${CAMERA_DEBUG_PREFIX} ${captureId} capture failed`, e);
       Alert.alert('CAPTURE ERROR', "COULDN'T READ THAT. TRY AGAIN.");
-      if (cameraRef.current) {
-        await cameraRef.current.resumePreview();
-      }
       setCapturedImageUri(null);
       setIsProcessing(false);
     }
@@ -202,7 +271,20 @@ export default function CameraScreen() {
         style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}
       >
         <View className="flex-row justify-between items-center">
-          <Pressable onPress={() => router.back()} className="bg-white px-2.5 py-1.5">
+          <Pressable
+            onPress={() => {
+              if (source === 'manual-entry') {
+                router.replace({
+                  pathname: '/manual-entry',
+                  params: manualEntryReturnParams,
+                });
+                return;
+              }
+
+              router.back();
+            }}
+            className="bg-white px-2.5 py-1.5"
+          >
             <Text className="font-mono text-sm font-black text-black">ABORT</Text>
           </Pressable>
           <Text className="font-mono text-base font-black text-white bg-black px-2.5 py-1.5">
@@ -241,7 +323,11 @@ export default function CameraScreen() {
             <Text className="font-mono text-xl font-black text-black">{processingMessage}</Text>
           </View>
         ) : (
-          <Pressable className="self-center w-20 h-20 rounded-full bg-white justify-center items-center mb-6" onPress={handleCapture}>
+          <Pressable
+            testID="capture-photo-cta"
+            className="self-center w-20 h-20 rounded-full bg-white justify-center items-center mb-6"
+            onPress={handleCapture}
+          >
             <View className="w-17.5 h-17.5 rounded-full border-4 border-black" />
           </Pressable>
         )}

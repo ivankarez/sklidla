@@ -67,7 +67,7 @@ export interface StructuredFoodNameAutofillOutput {
   protein_per_100g: number | null;
   carbs_per_100g: number | null;
   fats_per_100g: number | null;
-  serving_sizes: ServingSizeSuggestion[] | null;
+  serving_sizes: ServingSizeSuggestion[];
 }
 
 const nonNegativeNumberSchema = {
@@ -131,7 +131,7 @@ export const foodNameAutofillSchema = jsonSchema<StructuredFoodNameAutofillOutpu
     carbs_per_100g: { type: ['number', 'null'], minimum: 0 },
     fats_per_100g: { type: ['number', 'null'], minimum: 0 },
     serving_sizes: {
-      type: ['array', 'null'],
+      type: 'array',
       items: servingSizeSchema,
     },
   },

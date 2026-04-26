@@ -43,5 +43,5 @@ Rules:
 - Keep all macros normalized to per 100g.
 - Use realistic nutrition ranges.
 - If uncertain, keep the field null.
-- For serving sizes, provide 1-3 practical units when inferable (for example: slice, cup, piece); otherwise return null.`;
+- For serving sizes, provide 1-3 practical units when inferable (for example: slice, cup, piece); otherwise return an empty array.`;
 };

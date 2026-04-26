@@ -142,7 +142,7 @@ describe('utils/ai', () => {
               { type: 'text', text: expect.any(String) },
               {
                 type: 'image',
-                image: 'data:image/jpeg;base64,TESTBASE64',
+                image: 'TESTBASE64',
                 mediaType: 'image/jpeg',
               },
             ],
@@ -463,7 +463,7 @@ describe('utils/ai', () => {
               { type: 'text', text: 'Test prompt' },
               {
                 type: 'image',
-                image: 'data:image/jpeg;base64,TESTBASE64',
+                image: 'TESTBASE64',
                 mediaType: 'image/jpeg',
               },
             ],

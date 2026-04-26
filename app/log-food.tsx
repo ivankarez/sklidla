@@ -1,20 +1,124 @@
 import { Pressable, Text, TextInput, View } from "@/src/tw";
 import { Animated } from "@/src/tw/animated";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FlatList, useColorScheme } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
+import { Ionicons } from "@expo/vector-icons";
 import { getRandomLogMealCtaMessage, getRandomToastMessage } from "../constants/unhinged-toast";
-import { Food, getAllFoods, getServingSizes, logFood, searchFoods } from "@/db/dao";
-import { consumePendingCreatedLogFood } from "@/src/log-food-session";
+import { addFood, addServingSize, Food, getAllFoods, getServingSizes, getSetting, logFood, searchFoods } from "@/db/dao";
+import { consumePendingCreatedLogFood, consumePendingScannedLogMealItems } from "@/src/log-food-session";
+import type { MealScanItemResult } from "@/utils/ai";
+
+type ServingOption = {
+  id: number | null;
+  name: string;
+  weight: number;
+};
 
 type SelectedFoodEntry = {
-  food: Food;
+  key: string;
+  source: "library" | "scan";
+  foodId: number | null;
+  name: string;
+  brand: string | null;
+  calories_per_100g: number;
+  protein_per_100g: number;
+  carbs_per_100g: number;
+  fats_per_100g: number;
   amount: string;
   unit: string;
-  weight: number; // weight multiplier to grams
+  weight: number;
   servingSizeId: number | null;
+  servingOptions: ServingOption[];
+};
+
+type ConfiguringFoodDraft = Omit<SelectedFoodEntry, "key">;
+
+const normalizeServingOptions = (
+  servingSizes: { id: number; name: string; weight_in_grams: number }[]
+): ServingOption[] =>
+  servingSizes.map((size) => ({
+    id: size.id,
+    name: size.name,
+    weight: size.weight_in_grams,
+  }));
+
+const formatAmount = (value: number): string => {
+  if (!Number.isFinite(value) || value <= 0) return "100";
+  if (Number.isInteger(value)) return value.toString();
+  return value.toFixed(1).replace(/\.0$/, "");
+};
+
+const normalizeUnitName = (value: string): string => value.trim().toLowerCase();
+
+const createEntryFromFood = (
+  food: Food,
+  servingOptions: ServingOption[],
+  key: string
+): SelectedFoodEntry => {
+  const defaultServing = servingOptions[0] ?? null;
+
+  return {
+    key,
+    source: "library",
+    foodId: food.id,
+    name: food.name,
+    brand: food.brand,
+    calories_per_100g: food.calories_per_100g,
+    protein_per_100g: food.protein_per_100g,
+    carbs_per_100g: food.carbs_per_100g,
+    fats_per_100g: food.fats_per_100g,
+    amount: defaultServing ? "1" : "100",
+    unit: defaultServing?.name ?? "grams",
+    weight: defaultServing?.weight ?? 1,
+    servingSizeId: defaultServing?.id ?? null,
+    servingOptions,
+  };
+};
+
+const createEntryFromMealScan = (item: MealScanItemResult, key: string): SelectedFoodEntry => {
+  const servingOptions: ServingOption[] = item.serving_sizes.map((serving) => ({
+    id: null,
+    name: serving.name,
+    weight: serving.weight_g,
+  }));
+  const normalizedUnit = normalizeUnitName(item.estimated_amount_unit);
+  const matchedServing =
+    servingOptions.find((option) => normalizeUnitName(option.name) === normalizedUnit) ?? null;
+  const isGramUnit =
+    normalizedUnit === "" ||
+    normalizedUnit === "g" ||
+    normalizedUnit === "gram" ||
+    normalizedUnit === "grams";
+
+  const amount = matchedServing
+    ? formatAmount(item.estimated_amount)
+    : isGramUnit
+      ? formatAmount(item.estimated_weight_g || item.estimated_amount)
+      : servingOptions.length === 1
+        ? formatAmount(item.estimated_amount)
+        : formatAmount(item.estimated_weight_g || item.estimated_amount);
+
+  const selectedServing = matchedServing ?? (!isGramUnit && servingOptions.length === 1 ? servingOptions[0] : null);
+
+  return {
+    key,
+    source: "scan",
+    foodId: null,
+    name: item.name,
+    brand: item.brand ?? null,
+    calories_per_100g: item.calories_per_100g,
+    protein_per_100g: item.protein_per_100g,
+    carbs_per_100g: item.carbs_per_100g,
+    fats_per_100g: item.fats_per_100g,
+    amount,
+    unit: selectedServing?.name ?? "grams",
+    weight: selectedServing?.weight ?? 1,
+    servingSizeId: selectedServing?.id ?? null,
+    servingOptions,
+  };
 };
 
 export default function LogFoodScreen() {
@@ -63,16 +167,22 @@ export default function LogFoodScreen() {
   const [query, setQuery] = useState("");
   const [dbFoods, setDbFoods] = useState<Food[]>([]);
   const [selectedFoods, setSelectedFoods] = useState<SelectedFoodEntry[]>([]);
+  const [isAiEnabled, setIsAiEnabled] = useState(false);
 
-  // Configuration state
-  const [configuringFood, setConfiguringFood] = useState<Food | null>(null);
-  const [servingSizes, setServingSizes] = useState<{ id: number, name: string, weight_in_grams: number }[]>([]);
+  const [configuringFood, setConfiguringFood] = useState<ConfiguringFoodDraft | null>(null);
   const [amount, setAmount] = useState("100");
-  const [selectedUnit, setSelectedUnit] = useState<{ name: string, weight: number, id: number | null }>({ name: 'grams', weight: 1, id: null });
+  const [selectedUnit, setSelectedUnit] = useState<ServingOption>({ name: "grams", weight: 1, id: null });
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [saveCtaLabel, setSaveCtaLabel] = useState(() => getRandomLogMealCtaMessage());
   const saveCtaOpacity = useSharedValue(0);
   const saveCtaTranslateY = useSharedValue(24);
   const showSaveCta = !configuringFood && selectedFoods.length > 0;
+  const entryCounterRef = useRef(0);
+
+  const nextEntryKey = useCallback((prefix: string) => {
+    entryCounterRef.current += 1;
+    return `${prefix}-${Date.now()}-${entryCounterRef.current}`;
+  }, []);
 
   const loadFoods = useCallback(async (searchTerm: string = query) => {
     const trimmedQuery = searchTerm.trim();
@@ -80,18 +190,48 @@ export default function LogFoodScreen() {
     setDbFoods(items);
   }, [query]);
 
+  const startConfiguringEntry = useCallback((entry: ConfiguringFoodDraft, nextEditingIndex: number | null) => {
+    setConfiguringFood(entry);
+    setEditingIndex(nextEditingIndex);
+    setAmount(entry.amount);
+    setSelectedUnit({ name: entry.unit, weight: entry.weight, id: entry.servingSizeId });
+  }, []);
+
   const handleSelectFoodForConfig = useCallback(async (food: Food) => {
     const sizes = await getServingSizes(food.id);
-    setServingSizes(sizes);
-    setConfiguringFood(food);
-    if (sizes.length > 0) {
-      setAmount("1");
-      setSelectedUnit({ name: sizes[0].name, weight: sizes[0].weight_in_grams, id: sizes[0].id });
-    } else {
-      setAmount("100");
-      setSelectedUnit({ name: 'grams', weight: 1, id: null });
-    }
-  }, []);
+    const entry = createEntryFromFood(food, normalizeServingOptions(sizes), nextEntryKey(`food-${food.id}`));
+    startConfiguringEntry(
+      {
+        ...entry,
+        source: "library",
+      },
+      null
+    );
+  }, [nextEntryKey, startConfiguringEntry]);
+
+  const handleEditSelectedFood = useCallback((index: number) => {
+    const entry = selectedFoods[index];
+    if (!entry) return;
+
+    startConfiguringEntry(
+      {
+        source: entry.source,
+        foodId: entry.foodId,
+        name: entry.name,
+        brand: entry.brand,
+        calories_per_100g: entry.calories_per_100g,
+        protein_per_100g: entry.protein_per_100g,
+        carbs_per_100g: entry.carbs_per_100g,
+        fats_per_100g: entry.fats_per_100g,
+        amount: entry.amount,
+        unit: entry.unit,
+        weight: entry.weight,
+        servingSizeId: entry.servingSizeId,
+        servingOptions: entry.servingOptions,
+      },
+      index
+    );
+  }, [selectedFoods, startConfiguringEntry]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -118,20 +258,43 @@ export default function LogFoodScreen() {
       let isActive = true;
 
       async function syncLogFoodScreen() {
-        const pendingCreatedFood = consumePendingCreatedLogFood();
-        const nextQuery = pendingCreatedFood?.searchQuery ?? query;
+        const [aiEnabledSetting, items] = await Promise.all([
+          getSetting("ai_enabled"),
+          (async () => {
+            const pendingCreatedFood = consumePendingCreatedLogFood();
+            const nextQuery = pendingCreatedFood?.searchQuery ?? query;
+            const trimmedQuery = nextQuery.trim();
+            const loadedItems = trimmedQuery === "" ? await getAllFoods() : await searchFoods(trimmedQuery);
 
-        if (pendingCreatedFood?.searchQuery && pendingCreatedFood.searchQuery !== query) {
-          setQuery(pendingCreatedFood.searchQuery);
+            return {
+              loadedItems,
+              pendingCreatedFood,
+              pendingScannedItems: consumePendingScannedLogMealItems(),
+              nextQuery,
+            };
+          })(),
+        ]);
+
+        if (!isActive) return;
+
+        setIsAiEnabled(aiEnabledSetting === "true");
+        setDbFoods(items.loadedItems);
+
+        if (items.pendingCreatedFood?.searchQuery && items.pendingCreatedFood.searchQuery !== query) {
+          setQuery(items.pendingCreatedFood.searchQuery);
         }
 
-        const trimmedQuery = nextQuery.trim();
-        const items = trimmedQuery === "" ? await getAllFoods() : await searchFoods(trimmedQuery);
-        if (!isActive) return;
-        setDbFoods(items);
+        if (items.pendingScannedItems && items.pendingScannedItems.length > 0) {
+          setSelectedFoods((previous) => [
+            ...previous,
+            ...items.pendingScannedItems.map((item) =>
+              createEntryFromMealScan(item, nextEntryKey(`scan-${item.name.toLowerCase()}`))
+            ),
+          ]);
+        }
 
-        if (pendingCreatedFood) {
-          await handleSelectFoodForConfig(pendingCreatedFood.food);
+        if (items.pendingCreatedFood) {
+          await handleSelectFoodForConfig(items.pendingCreatedFood.food);
         }
       }
 
@@ -140,16 +303,39 @@ export default function LogFoodScreen() {
       return () => {
         isActive = false;
       };
-    }, [handleSelectFoodForConfig, query])
+    }, [handleSelectFoodForConfig, nextEntryKey, query])
   );
 
   const handleConfirmAddFood = () => {
     if (!configuringFood) return;
-    setSelectedFoods((prev) => [
-      ...prev,
-      { food: configuringFood, amount, unit: selectedUnit.name, weight: selectedUnit.weight, servingSizeId: selectedUnit.id }
-    ]);
+
+    const nextEntry: SelectedFoodEntry = {
+      key: editingIndex !== null ? selectedFoods[editingIndex]?.key ?? nextEntryKey(configuringFood.name) : nextEntryKey(configuringFood.name),
+      source: configuringFood.source,
+      foodId: configuringFood.foodId,
+      name: configuringFood.name,
+      brand: configuringFood.brand,
+      calories_per_100g: configuringFood.calories_per_100g,
+      protein_per_100g: configuringFood.protein_per_100g,
+      carbs_per_100g: configuringFood.carbs_per_100g,
+      fats_per_100g: configuringFood.fats_per_100g,
+      amount,
+      unit: selectedUnit.name,
+      weight: selectedUnit.weight,
+      servingSizeId: selectedUnit.id,
+      servingOptions: configuringFood.servingOptions,
+    };
+
+    setSelectedFoods((previous) => {
+      if (editingIndex === null) {
+        return [...previous, nextEntry];
+      }
+
+      return previous.map((item, index) => (index === editingIndex ? nextEntry : item));
+    });
+
     setConfiguringFood(null);
+    setEditingIndex(null);
   };
 
   const handleRemoveSelectedFood = (indexToRemove: number) => {
@@ -161,10 +347,20 @@ export default function LogFoodScreen() {
     if (!trimmedQuery) return;
 
     router.push({
-      pathname: '/manual-entry',
+      pathname: "/manual-entry",
       params: {
-        returnTo: 'log',
+        returnTo: "log",
         name: trimmedQuery,
+      },
+    });
+  };
+
+  const handleOpenMealScan = () => {
+    router.push({
+      pathname: "/camera",
+      params: {
+        mode: "meal",
+        source: "log-meal",
       },
     });
   };
@@ -173,15 +369,41 @@ export default function LogFoodScreen() {
     for (const item of selectedFoods) {
       const numericAmount = parseFloat(item.amount) || 0;
       const currentMultiplier = item.weight / 100;
-      
-      const currentCals = item.food.calories_per_100g * currentMultiplier * numericAmount;
-      const currentPro = item.food.protein_per_100g * currentMultiplier * numericAmount;
-      const currentCar = item.food.carbs_per_100g * currentMultiplier * numericAmount;
-      const currentFat = item.food.fats_per_100g * currentMultiplier * numericAmount;
+
+      const currentCals = item.calories_per_100g * currentMultiplier * numericAmount;
+      const currentPro = item.protein_per_100g * currentMultiplier * numericAmount;
+      const currentCar = item.carbs_per_100g * currentMultiplier * numericAmount;
+      const currentFat = item.fats_per_100g * currentMultiplier * numericAmount;
+
+      let foodId = item.foodId;
+      let servingSizeId = item.servingSizeId;
+
+      if (foodId === null) {
+        foodId = await addFood({
+          name: item.name,
+          brand: item.brand,
+          is_hidden: 1,
+          calories_per_100g: item.calories_per_100g,
+          protein_per_100g: item.protein_per_100g,
+          carbs_per_100g: item.carbs_per_100g,
+          fats_per_100g: item.fats_per_100g,
+        });
+
+        const createdServingIds = new Map<string, number>();
+        for (const servingOption of item.servingOptions) {
+          const createdServingId = await addServingSize(foodId, servingOption.name, servingOption.weight);
+          createdServingIds.set(`${normalizeUnitName(servingOption.name)}:${servingOption.weight}`, createdServingId);
+        }
+
+        if (item.unit !== "grams") {
+          servingSizeId =
+            createdServingIds.get(`${normalizeUnitName(item.unit)}:${item.weight}`) ?? null;
+        }
+      }
 
       await logFood(
-        item.food.id,
-        item.servingSizeId,
+        foodId,
+        servingSizeId,
         numericAmount,
         currentCals,
         currentPro,
@@ -190,7 +412,7 @@ export default function LogFoodScreen() {
       );
     }
     router.replace({
-      pathname: '/(tabs)',
+      pathname: "/(tabs)",
       params: { toastMessage: getRandomToastMessage() },
     });
   };
@@ -212,8 +434,7 @@ export default function LogFoodScreen() {
         <View style={{ width: 80 }} />
       </View>
 
-      {/* Top section: Selected foods */}
-      <View style={{ maxHeight: 200, backgroundColor: theme.panelBg, borderColor: theme.border }} className="border-b-4">
+      <View style={{ maxHeight: 240, backgroundColor: theme.panelBg, borderColor: theme.border }} className="border-b-4">
         {selectedFoods.length === 0 ? (
           <View className="p-4 items-center justify-center min-h-[100px]">
             <Text className="font-mono text-sm font-bold" style={{ color: theme.textPrimary }}>NOTHING PICKED YET.</Text>
@@ -221,28 +442,32 @@ export default function LogFoodScreen() {
         ) : (
           <FlatList
             data={selectedFoods}
-            keyExtractor={(item, index) => `${item.food.id}-${index}`}
+            keyExtractor={(item) => item.key}
             contentContainerStyle={{ padding: 16 }}
             renderItem={({ item, index }) => (
               <View className="flex-row justify-between items-center py-2 border-b-2" style={{ borderColor: theme.rowBorder }}>
-                <View>
+                <View className="flex-1 pr-4">
                   <Text className="font-mono text-base font-bold" style={{ color: theme.textPrimary }}>
-                    {item.food.name}
+                    {item.name}
                   </Text>
                   <Text className="font-mono text-xs font-bold mt-0.5" style={{ color: theme.textSecondary }}>
-                    {item.amount} {item.unit.toUpperCase()}
+                    {item.amount} {item.unit.toUpperCase()}{item.source === "scan" ? " · AI" : ""}
                   </Text>
                 </View>
-                <Pressable onPress={() => handleRemoveSelectedFood(index)}>
-                  <Text className="font-mono text-xs font-bold" style={{ color: theme.remove }}>[REMOVE]</Text>
-                </Pressable>
+                <View className="items-end gap-1">
+                  <Pressable onPress={() => handleEditSelectedFood(index)}>
+                    <Text className="font-mono text-xs font-bold" style={{ color: theme.textPrimary }}>[EDIT]</Text>
+                  </Pressable>
+                  <Pressable onPress={() => handleRemoveSelectedFood(index)}>
+                    <Text className="font-mono text-xs font-bold" style={{ color: theme.remove }}>[REMOVE]</Text>
+                  </Pressable>
+                </View>
               </View>
             )}
           />
         )}
       </View>
 
-      {/* Bottom section: Search & DB list OR Config Form */}
       <View style={{ flex: 1, backgroundColor: theme.screenBg }}>
         {configuringFood ? (
           <View className="flex-1 p-5">
@@ -269,10 +494,10 @@ export default function LogFoodScreen() {
 
             <Text className="font-mono text-base font-black mb-2" style={{ color: theme.textPrimary }}>UNIT</Text>
             <View className="flex-row flex-wrap gap-2 mb-8">
-              {servingSizes.map((size) => (
+              {configuringFood.servingOptions.map((size) => (
                 <Pressable
-                  key={size.id}
-                  onPress={() => setSelectedUnit({ name: size.name, weight: size.weight_in_grams, id: size.id })}
+                  key={`${size.name}-${size.weight}`}
+                  onPress={() => setSelectedUnit(size)}
                   className="border-4 py-3 px-4"
                   style={{
                     borderColor: theme.border,
@@ -288,7 +513,7 @@ export default function LogFoodScreen() {
                 </Pressable>
               ))}
               <Pressable
-                onPress={() => setSelectedUnit({ name: 'grams', weight: 1, id: null })}
+                onPress={() => setSelectedUnit({ name: "grams", weight: 1, id: null })}
                 className="border-4 py-3 px-4"
                 style={{
                   borderColor: theme.border,
@@ -305,26 +530,47 @@ export default function LogFoodScreen() {
             </View>
 
             <Pressable className="py-5 items-center mb-4" style={{ backgroundColor: theme.primaryButtonBg }} onPress={handleConfirmAddFood}>
-              <Text className="font-mono text-xl font-black" style={{ color: theme.primaryButtonText }}>ADD TO LOG</Text>
+              <Text className="font-mono text-xl font-black" style={{ color: theme.primaryButtonText }}>
+                {editingIndex === null ? "ADD TO LOG" : "UPDATE ENTRY"}
+              </Text>
             </Pressable>
 
-            <Pressable className="py-4 items-center" onPress={() => setConfiguringFood(null)}>
+            <Pressable
+              className="py-4 items-center"
+              onPress={() => {
+                setConfiguringFood(null);
+                setEditingIndex(null);
+              }}
+            >
               <Text className="font-mono text-base font-bold" style={{ color: theme.textPrimary }}>CANCEL</Text>
             </Pressable>
           </View>
         ) : (
           <>
             <View className="px-5 py-4 border-b-4" style={{ borderColor: theme.border, backgroundColor: theme.screenBg }}>
-              <TextInput
-                className="font-mono border-2 p-4 text-base font-bold"
-                style={{ borderColor: theme.border, backgroundColor: theme.primaryButtonBg, color: theme.primaryButtonText }}
-                value={query}
-                onChangeText={setQuery}
-                placeholder="SEARCH DATABASE..."
-                placeholderTextColor={theme.inputPlaceholder}
-                selectionColor={theme.primaryButtonText}
-                returnKeyType="search"
-              />
+              <View className="flex-row items-stretch gap-3">
+                <TextInput
+                  className="font-mono border-2 p-4 text-base font-bold flex-1"
+                  style={{ borderColor: theme.border, backgroundColor: theme.primaryButtonBg, color: theme.primaryButtonText }}
+                  value={query}
+                  onChangeText={setQuery}
+                  placeholder="SEARCH DATABASE..."
+                  placeholderTextColor={theme.inputPlaceholder}
+                  selectionColor={theme.primaryButtonText}
+                  returnKeyType="search"
+                />
+                {isAiEnabled && (
+                  <Pressable
+                    testID="open-meal-scan"
+                    accessibilityLabel="Snap meal"
+                    className="items-center justify-center px-4 border-2"
+                    style={{ borderColor: theme.border, backgroundColor: theme.primaryButtonBg }}
+                    onPress={handleOpenMealScan}
+                  >
+                    <Ionicons name="camera" size={18} color={theme.primaryButtonText} />
+                  </Pressable>
+                )}
+              </View>
             </View>
 
             <FlatList
@@ -333,28 +579,28 @@ export default function LogFoodScreen() {
               keyExtractor={(item) => item.id.toString()}
               contentContainerStyle={{ paddingBottom: showSaveCta ? 112 : 20 }}
               keyboardShouldPersistTaps="handled"
-                ListEmptyComponent={
-                  query.trim() ? (
-                    <View className="items-center mt-10 px-5">
-                      <Text className="font-mono text-sm text-center mb-4" style={{ color: theme.textPrimary }}>
-                        NO MATCHES. START A NEW ONE.
-                      </Text>
-                      <Pressable
-                        className="py-3 px-6"
-                        style={{ backgroundColor: theme.primaryButtonBg }}
-                        onPress={handleCreateFood}
-                      >
-                        <Text className="font-mono text-sm font-bold" style={{ color: theme.primaryButtonText }}>
-                          ADD &quot;{query.trim()}&quot;
-                        </Text>
-                      </Pressable>
-                    </View>
-                  ) : (
-                    <Text className="font-mono text-sm text-center mt-10" style={{ color: theme.textPrimary }}>
-                      NOTHING IN THE LIBRARY YET.
+              ListEmptyComponent={
+                query.trim() ? (
+                  <View className="items-center mt-10 px-5">
+                    <Text className="font-mono text-sm text-center mb-4" style={{ color: theme.textPrimary }}>
+                      NO MATCHES. START A NEW ONE.
                     </Text>
-                  )
-                }
+                    <Pressable
+                      className="py-3 px-6"
+                      style={{ backgroundColor: theme.primaryButtonBg }}
+                      onPress={handleCreateFood}
+                    >
+                      <Text className="font-mono text-sm font-bold" style={{ color: theme.primaryButtonText }}>
+                        ADD &quot;{query.trim()}&quot;
+                      </Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <Text className="font-mono text-sm text-center mt-10" style={{ color: theme.textPrimary }}>
+                    NOTHING IN THE LIBRARY YET.
+                  </Text>
+                )
+              }
               renderItem={({ item }) => (
                 <Pressable
                   className="flex-row justify-between items-center py-4 px-5 border-b-2"

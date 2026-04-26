@@ -25,6 +25,7 @@ let nextActivityId = 1;
 let nextWaterLogId = 1;
 let nextWeightLogId = 1;
 let pendingCreatedLogFood = null;
+let pendingScannedLogMealItems = null;
 
 const resetMockState = () => {
   mockSettings.clear();
@@ -41,6 +42,7 @@ const resetMockState = () => {
   nextWaterLogId = 1;
   nextWeightLogId = 1;
   pendingCreatedLogFood = null;
+  pendingScannedLogMealItems = null;
 };
 
 const toLocalSqlDate = (value) => {
@@ -397,8 +399,19 @@ vi.mock('@/src/log-food-session', () => ({
     pendingCreatedLogFood = null;
     return value;
   },
+  setPendingScannedLogMealItems: (value) => {
+    pendingScannedLogMealItems = value;
+  },
+  consumePendingScannedLogMealItems: () => {
+    const value = pendingScannedLogMealItems;
+    pendingScannedLogMealItems = null;
+    return value;
+  },
   __resetPendingCreatedLogFood: () => {
     pendingCreatedLogFood = null;
+  },
+  __setPendingScannedLogMealItems: (value) => {
+    pendingScannedLogMealItems = value;
   },
 }));
 
@@ -521,10 +534,11 @@ vi.mock('@/db/dao', () => ({
   updateFood: vi.fn(async (id, food) => {
     mockFoods = mockFoods.map((item) => (item.id === id ? { id, ...food } : item));
   }),
-  getAllFoods: vi.fn(async () => mockFoods),
+  getAllFoods: vi.fn(async () => mockFoods.filter((food) => food.is_hidden !== 1)),
   searchFoods: vi.fn(async (query) => {
     const normalizedQuery = query.trim().toLowerCase();
     return mockFoods.filter((food) => {
+      if (food.is_hidden === 1) return false;
       const haystacks = [food.name, food.brand ?? ''];
       return haystacks.some((value) => value.toLowerCase().includes(normalizedQuery));
     });

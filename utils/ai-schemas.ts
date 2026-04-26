@@ -14,6 +14,23 @@ export interface ServingSizeSuggestion {
   weight_g: number;
 }
 
+export interface MealScanItemResult {
+  name: string;
+  brand?: string;
+  calories_per_100g: number;
+  protein_per_100g: number;
+  carbs_per_100g: number;
+  fats_per_100g: number;
+  estimated_amount: number;
+  estimated_amount_unit: string;
+  estimated_weight_g: number;
+  serving_sizes: ServingSizeSuggestion[];
+}
+
+export interface MealScanResult {
+  items: MealScanItemResult[];
+}
+
 export interface AiExtractionResult {
   name: string;
   brand?: string;
@@ -60,6 +77,23 @@ export interface StructuredAiExtractionOutput {
   serving_sizes: ServingSizeSuggestion[];
 }
 
+export interface StructuredMealScanItemOutput {
+  name: string;
+  brand: string;
+  calories_per_100g: number;
+  protein_per_100g: number;
+  carbs_per_100g: number;
+  fats_per_100g: number;
+  estimated_amount: number;
+  estimated_amount_unit: string;
+  estimated_weight_g: number;
+  serving_sizes: ServingSizeSuggestion[];
+}
+
+export interface StructuredMealScanOutput {
+  items: StructuredMealScanItemOutput[];
+}
+
 export interface StructuredFoodNameAutofillOutput {
   name: string | null;
   brand: string | null;
@@ -83,6 +117,38 @@ const servingSizeSchema = {
     weight_g: nonNegativeNumberSchema,
   },
   required: ['name', 'weight_g'],
+} satisfies JSONSchema7;
+
+const mealScanItemSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    name: { type: 'string' },
+    brand: { type: 'string' },
+    calories_per_100g: nonNegativeNumberSchema,
+    protein_per_100g: nonNegativeNumberSchema,
+    carbs_per_100g: nonNegativeNumberSchema,
+    fats_per_100g: nonNegativeNumberSchema,
+    estimated_amount: nonNegativeNumberSchema,
+    estimated_amount_unit: { type: 'string' },
+    estimated_weight_g: nonNegativeNumberSchema,
+    serving_sizes: {
+      type: 'array',
+      items: servingSizeSchema,
+    },
+  },
+  required: [
+    'name',
+    'brand',
+    'calories_per_100g',
+    'protein_per_100g',
+    'carbs_per_100g',
+    'fats_per_100g',
+    'estimated_amount',
+    'estimated_amount_unit',
+    'estimated_weight_g',
+    'serving_sizes',
+  ],
 } satisfies JSONSchema7;
 
 export const aiExtractionSchema = jsonSchema<StructuredAiExtractionOutput>({
@@ -118,6 +184,18 @@ export const aiExtractionSchema = jsonSchema<StructuredAiExtractionOutput>({
     'serving_size_g',
     'serving_sizes',
   ],
+});
+
+export const mealScanSchema = jsonSchema<StructuredMealScanOutput>({
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    items: {
+      type: 'array',
+      items: mealScanItemSchema,
+    },
+  },
+  required: ['items'],
 });
 
 export const foodNameAutofillSchema = jsonSchema<StructuredFoodNameAutofillOutput>({
@@ -200,6 +278,37 @@ export const sanitizeAiExtraction = (raw: StructuredAiExtractionOutput): AiExtra
     serving_sizes: sanitizeServingSizes(raw.serving_sizes),
     detection_type: raw.detection_type,
   };
+};
+
+export const sanitizeMealScan = (raw: StructuredMealScanOutput): MealScanResult => {
+  const items = raw.items
+    .map((item): MealScanItemResult | null => {
+      const name = item.name.trim();
+      const sanitizedName = invalidNames.has(name.toLowerCase()) ? '' : name;
+      if (!sanitizedName) return null;
+
+      const brand = item.brand.trim();
+      const estimatedAmount = toNonNegativeNumber(item.estimated_amount);
+      const estimatedWeight = toNonNegativeNumber(item.estimated_weight_g);
+      const estimatedAmountUnit = item.estimated_amount_unit.trim();
+
+      return {
+        name: sanitizedName,
+        ...(brand ? { brand } : {}),
+        calories_per_100g: toNonNegativeNumber(item.calories_per_100g),
+        protein_per_100g: toNonNegativeNumber(item.protein_per_100g),
+        carbs_per_100g: toNonNegativeNumber(item.carbs_per_100g),
+        fats_per_100g: toNonNegativeNumber(item.fats_per_100g),
+        estimated_amount: estimatedAmount > 0 ? estimatedAmount : estimatedWeight > 0 ? estimatedWeight : 100,
+        estimated_amount_unit: estimatedAmountUnit || 'grams',
+        estimated_weight_g: estimatedWeight,
+        serving_sizes: sanitizeServingSizes(item.serving_sizes),
+      };
+    })
+    .filter((item): item is MealScanItemResult => item !== null)
+    .slice(0, 8);
+
+  return { items };
 };
 
 export const sanitizeFoodNameAutofill = (

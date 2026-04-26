@@ -25,6 +25,10 @@ describe('settings screen', () => {
         enabled: false,
         inclusionMode: 'half',
       });
+      expect(dao.saveWaterTrackingSettings).toHaveBeenCalledWith({
+        enabled: false,
+        stepAmountMl: 250,
+      });
       expect(dao.saveMacroGoals).toHaveBeenCalled();
       expect(dao.saveUserProfile).toHaveBeenCalled();
     }, { timeout: 2000 });
@@ -44,6 +48,24 @@ describe('settings screen', () => {
       expect(dao.saveActivityCalorieSettings).toHaveBeenCalledWith({
         enabled: true,
         inclusionMode: 'all',
+      });
+    }, { timeout: 2000 });
+  });
+
+  it('saves the water tracking controls', async () => {
+    render(<SettingsScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByText('WATER TRACKING')).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByText('SHOW WATER TRACKER'));
+    fireEvent.click(screen.getByText('300 ML'));
+
+    await waitFor(() => {
+      expect(dao.saveWaterTrackingSettings).toHaveBeenCalledWith({
+        enabled: true,
+        stepAmountMl: 300,
       });
     }, { timeout: 2000 });
   });

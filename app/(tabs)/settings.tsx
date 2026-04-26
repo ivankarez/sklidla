@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Appearance, Modal, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
+  getWaterTrackingSettings,
   clearAllData,
   getActivityCalorieSettings,
   getMacroGoals,
@@ -14,9 +15,11 @@ import {
   getUserProfile,
   saveActivityCalorieSettings,
   saveMacroGoals,
+  saveWaterTrackingSettings,
   saveUserProfile,
   setSetting,
   type ActivityCalorieInclusionMode,
+  type WaterStepAmount,
 } from '../../db/dao';
 
 const AI_PROVIDERS = ['OpenRouter', 'OpenAI', 'Gemini'] as const;
@@ -31,6 +34,12 @@ const ACTIVITY_CALORIE_INCLUSION_OPTIONS: {
   { id: 'none', label: 'DO NOT INCLUDE' },
   { id: 'half', label: 'INCLUDE 50%' },
   { id: 'all', label: 'INCLUDE ALL' },
+];
+
+const WATER_STEP_OPTIONS: { id: WaterStepAmount; label: string }[] = [
+  { id: 100, label: '100 ML' },
+  { id: 250, label: '250 ML' },
+  { id: 300, label: '300 ML' },
 ];
 
 export default function SettingsScreen() {
@@ -49,6 +58,8 @@ export default function SettingsScreen() {
   const [activityCalorieAdjustmentsEnabled, setActivityCalorieAdjustmentsEnabled] = useState(false);
   const [activityCalorieInclusionMode, setActivityCalorieInclusionMode] =
     useState<ActivityCalorieInclusionMode>('half');
+  const [waterTrackingEnabled, setWaterTrackingEnabled] = useState(false);
+  const [waterStepAmountMl, setWaterStepAmountMl] = useState<WaterStepAmount>(250);
   const [isLoading, setIsLoading] = useState(true);
 
   const [isProviderDropdownOpen, setIsProviderDropdownOpen] = useState(false);
@@ -88,10 +99,12 @@ export default function SettingsScreen() {
           else if (storedAi) setApiKey(storedAi);
         }
 
-        const [macroGoals, profile, activityCalorieSettings] = await Promise.all([
+        const [macroGoals, profile, activityCalorieSettings, waterTrackingSettings] =
+          await Promise.all([
           getMacroGoals(),
           getUserProfile(),
           getActivityCalorieSettings(),
+          getWaterTrackingSettings(),
         ]);
 
         setGoalCalories(macroGoals.calories);
@@ -100,6 +113,8 @@ export default function SettingsScreen() {
         setGoalFats(macroGoals.fats);
         setActivityCalorieAdjustmentsEnabled(activityCalorieSettings.enabled);
         setActivityCalorieInclusionMode(activityCalorieSettings.inclusionMode);
+        setWaterTrackingEnabled(waterTrackingSettings.enabled);
+        setWaterStepAmountMl(waterTrackingSettings.stepAmountMl);
 
         setGender(profile.gender);
         setAge(profile.age);
@@ -141,6 +156,10 @@ export default function SettingsScreen() {
             enabled: activityCalorieAdjustmentsEnabled,
             inclusionMode: activityCalorieInclusionMode,
           }),
+          saveWaterTrackingSettings({
+            enabled: waterTrackingEnabled,
+            stepAmountMl: waterStepAmountMl,
+          }),
           saveUserProfile(
             {
               gender,
@@ -162,7 +181,7 @@ export default function SettingsScreen() {
     }, 500); // 500ms debounce
 
     return () => clearTimeout(timer);
-  }, [aiEnabled, aiProvider, apiKey, goalCalories, goalProtein, goalCarbs, goalFats, activityCalorieAdjustmentsEnabled, activityCalorieInclusionMode, gender, age, weight, height, activityLevel, goal, dietaryPreference, themePreference, isLoading]);
+  }, [aiEnabled, aiProvider, apiKey, goalCalories, goalProtein, goalCarbs, goalFats, activityCalorieAdjustmentsEnabled, activityCalorieInclusionMode, waterTrackingEnabled, waterStepAmountMl, gender, age, weight, height, activityLevel, goal, dietaryPreference, themePreference, isLoading]);
 
   if (isLoading) {
     return (
@@ -419,6 +438,60 @@ export default function SettingsScreen() {
             <Text className="font-mono text-xs font-bold text-black mt-3 leading-4.5">
               WHEN THIS IS ON, THE ACTIVITIES SECTION APPEARS ON THE DASHBOARD AND SKLIDLA
               COUNTS 0%, 50%, OR 100% OF BURNED ACTIVITY CALORIES TOWARD YOUR DAILY TARGET.
+            </Text>
+          </View>
+        </View>
+
+        <View className="mb-10">
+          <Text className="font-mono text-xl font-black text-black mb-1.5">WATER TRACKING</Text>
+          <View className="h-1 bg-black mb-5" />
+
+          <Pressable
+            className="flex-row items-center mb-5"
+            onPress={() => setWaterTrackingEnabled(!waterTrackingEnabled)}
+          >
+            <View
+              className={`w-8 h-8 border-2 border-black mr-4 items-center justify-center ${
+                waterTrackingEnabled ? 'bg-black' : 'bg-white'
+              }`}
+            >
+              {waterTrackingEnabled ? (
+                <Ionicons
+                  name="checkmark"
+                  size={24}
+                  color={colorScheme === 'dark' ? 'black' : 'white'}
+                />
+              ) : null}
+            </View>
+            <Text className="font-mono text-base font-bold text-black">
+              SHOW WATER TRACKER
+            </Text>
+          </Pressable>
+
+          <View style={{ opacity: waterTrackingEnabled ? 1 : 0.55 }}>
+            <Text className="font-mono text-sm font-bold text-black mb-2">BUTTON STEP</Text>
+            <View className="gap-2">
+              {WATER_STEP_OPTIONS.map((option) => (
+                <Pressable
+                  key={option.id}
+                  className={`border-2 border-black p-4 ${
+                    waterStepAmountMl === option.id ? 'bg-black' : 'bg-white'
+                  }`}
+                  onPress={() => setWaterStepAmountMl(option.id)}
+                >
+                  <Text
+                    className={`font-mono text-sm font-black ${
+                      waterStepAmountMl === option.id ? 'text-white' : 'text-black'
+                    }`}
+                  >
+                    {option.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text className="font-mono text-xs font-bold text-black mt-3 leading-4.5">
+              WHEN THIS IS ON, THE DASHBOARD SHOWS A WATER ROW ABOVE ACTIVITIES AND THE
+              PLUS/MINUS BUTTONS MOVE BY YOUR SELECTED STEP SIZE.
             </Text>
           </View>
         </View>

@@ -66,8 +66,15 @@ export const initDb = async () => {
       logged_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS water_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      amount_ml INTEGER NOT NULL,
+      logged_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE INDEX IF NOT EXISTS idx_weight_logs_logged_at ON weight_logs (logged_at);
     CREATE INDEX IF NOT EXISTS idx_activities_logged_at ON activities (logged_at);
+    CREATE INDEX IF NOT EXISTS idx_water_logs_logged_at ON water_logs (logged_at);
   `);
 
   await database.runAsync(

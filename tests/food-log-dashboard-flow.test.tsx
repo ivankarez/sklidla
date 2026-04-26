@@ -212,4 +212,36 @@ describe('food creation and logging flow', () => {
       expect(screen.getByText('REMAINING: 2150 KCAL')).toBeTruthy();
     });
   });
+
+  it('shows water tracking above activities and adjusts the daily total by the configured step', async () => {
+    await dao.saveActivityCalorieSettings({
+      enabled: true,
+      inclusionMode: 'all',
+    });
+    await (dao as any).saveWaterTrackingSettings({
+      enabled: true,
+      stepAmountMl: 300,
+    });
+
+    render(<Dashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByText('WATER')).toBeTruthy();
+      expect(screen.getByText('STEP: 300ML')).toBeTruthy();
+      expect(screen.getByText('0ML')).toBeTruthy();
+      expect(screen.getByText('ACTIVITIES')).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByTestId('increase-water-intake'));
+
+    await waitFor(() => {
+      expect(screen.getByText('300ML')).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByTestId('decrease-water-intake'));
+
+    await waitFor(() => {
+      expect(screen.getByText('0ML')).toBeTruthy();
+    });
+  });
 });

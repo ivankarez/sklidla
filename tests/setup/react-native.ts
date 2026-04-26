@@ -14,6 +14,7 @@ let localSearchParams = {};
 const mockSettings = new Map();
 let mockLogs = [];
 let mockActivities = [];
+let mockWaterLogs = [];
 let mockWeightLogs = [];
 let mockFoods = [];
 let mockServingSizes = [];
@@ -21,6 +22,7 @@ let nextFoodId = 1;
 let nextServingSizeId = 1;
 let nextLogId = 1;
 let nextActivityId = 1;
+let nextWaterLogId = 1;
 let nextWeightLogId = 1;
 let pendingCreatedLogFood = null;
 
@@ -28,6 +30,7 @@ const resetMockState = () => {
   mockSettings.clear();
   mockLogs = [];
   mockActivities = [];
+  mockWaterLogs = [];
   mockWeightLogs = [];
   mockFoods = [];
   mockServingSizes = [];
@@ -35,6 +38,7 @@ const resetMockState = () => {
   nextServingSizeId = 1;
   nextLogId = 1;
   nextActivityId = 1;
+  nextWaterLogId = 1;
   nextWeightLogId = 1;
   pendingCreatedLogFood = null;
 };
@@ -182,6 +186,23 @@ const getMockActivityCalorieSettings = () => {
     inclusionMode: normalizedInclusionMode,
   };
 };
+
+const getMockWaterTrackingSettings = () => {
+  const stepAmount = Number.parseInt(mockSettings.get('water_tracking_step_amount_ml') ?? '250', 10);
+  const normalizedStepAmount = stepAmount === 100 || stepAmount === 250 || stepAmount === 300
+    ? stepAmount
+    : 250;
+
+  return {
+    enabled: (mockSettings.get('water_tracking_enabled') ?? 'false') === 'true',
+    stepAmountMl: normalizedStepAmount,
+  };
+};
+
+const getMockWaterIntakeByDate = (dateString) =>
+  mockWaterLogs
+    .filter((entry) => toLocalSqlDate(entry.logged_at) === dateString)
+    .reduce((sum, entry) => sum + entry.amount_ml, 0);
 
 const getMockEffectiveActivityCalories = (caloriesBurned, settings) => {
   if (!settings.enabled) {
@@ -427,6 +448,28 @@ vi.mock('@/db/dao', () => ({
     );
     mockSettings.set('activity_calorie_inclusion_mode', settings.inclusionMode);
   }),
+  getWaterTrackingSettings: vi.fn(async () => getMockWaterTrackingSettings()),
+  saveWaterTrackingSettings: vi.fn(async (settings) => {
+    mockSettings.set('water_tracking_enabled', settings.enabled ? 'true' : 'false');
+    mockSettings.set('water_tracking_step_amount_ml', String(settings.stepAmountMl));
+  }),
+  getWaterIntakeByDate: vi.fn(async (dateString) => getMockWaterIntakeByDate(dateString)),
+  adjustWaterIntakeByDate: vi.fn(async (dateString, deltaMl, loggedAt) => {
+    const currentTotal = getMockWaterIntakeByDate(dateString);
+    const normalizedDelta = deltaMl < 0 ? Math.max(deltaMl, -currentTotal) : deltaMl;
+
+    if (normalizedDelta === 0) {
+      return currentTotal;
+    }
+
+    const createdWaterLog = {
+      id: nextWaterLogId++,
+      amount_ml: normalizedDelta,
+      logged_at: loggedAt ?? new Date(`${dateString}T12:00:00`).toISOString(),
+    };
+    mockWaterLogs.push(createdWaterLog);
+    return currentTotal + normalizedDelta;
+  }),
   calculateEffectiveActivityCalories: vi.fn((caloriesBurned, settings) =>
     getMockEffectiveActivityCalories(caloriesBurned, settings)
   ),
@@ -614,6 +657,9 @@ vi.mock('@/db/dao', () => ({
   },
   __setMockActivities: (activities) => {
     mockActivities = activities;
+  },
+  __setMockWaterLogs: (waterLogs) => {
+    mockWaterLogs = waterLogs;
   },
   __setMockWeightLogs: (weightLogs) => {
     mockWeightLogs = weightLogs;

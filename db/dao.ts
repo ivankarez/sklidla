@@ -63,6 +63,13 @@ export interface ActivityCalorieSettings {
   inclusionMode: ActivityCalorieInclusionMode;
 }
 
+export type WaterStepAmount = 100 | 250 | 300;
+
+export interface WaterTrackingSettings {
+  enabled: boolean;
+  stepAmountMl: WaterStepAmount;
+}
+
 export interface SaveUserProfileOptions {
   recordWeightHistory?: boolean;
   recordedAt?: string;
@@ -97,6 +104,11 @@ const DEFAULT_ACTIVITY_CALORIE_SETTINGS: ActivityCalorieSettings = {
   inclusionMode: 'half',
 };
 
+const DEFAULT_WATER_TRACKING_SETTINGS: WaterTrackingSettings = {
+  enabled: false,
+  stepAmountMl: 250,
+};
+
 const PROFILE_SETTING_KEYS = {
   gender: 'bio_gender',
   age: 'bio_age',
@@ -112,6 +124,11 @@ const ACTIVITY_CALORIE_SETTING_KEYS = {
   inclusionMode: 'activity_calorie_inclusion_mode',
 } as const;
 
+const WATER_TRACKING_SETTING_KEYS = {
+  enabled: 'water_tracking_enabled',
+  stepAmountMl: 'water_tracking_step_amount_ml',
+} as const;
+
 const ACTIVITY_CALORIE_INCLUSION_MULTIPLIERS: Record<ActivityCalorieInclusionMode, number> = {
   none: 0,
   half: 0.5,
@@ -122,6 +139,14 @@ const isActivityCalorieInclusionMode = (
   value: string | null
 ): value is ActivityCalorieInclusionMode =>
   value === 'none' || value === 'half' || value === 'all';
+
+const isWaterStepAmount = (value: number): value is WaterStepAmount =>
+  value === 100 || value === 250 || value === 300;
+
+const normalizeWaterStepAmount = (value: string | null): WaterStepAmount => {
+  const parsed = Number.parseInt(value ?? '', 10);
+  return isWaterStepAmount(parsed) ? parsed : DEFAULT_WATER_TRACKING_SETTINGS.stepAmountMl;
+};
 
 const normalizeWeightValue = (value: string): number | null => {
   const parsed = Number.parseFloat(value);
@@ -264,6 +289,61 @@ export const calculateEffectiveActivityCalories = (
   return Number(
     (caloriesBurned * ACTIVITY_CALORIE_INCLUSION_MULTIPLIERS[settings.inclusionMode]).toFixed(2)
   );
+};
+
+export const getWaterTrackingSettings = async (): Promise<WaterTrackingSettings> => {
+  const [enabled, stepAmountMl] = await Promise.all([
+    getSetting(WATER_TRACKING_SETTING_KEYS.enabled),
+    getSetting(WATER_TRACKING_SETTING_KEYS.stepAmountMl),
+  ]);
+
+  return {
+    enabled: enabled === null ? DEFAULT_WATER_TRACKING_SETTINGS.enabled : enabled === 'true',
+    stepAmountMl: normalizeWaterStepAmount(stepAmountMl),
+  };
+};
+
+export const saveWaterTrackingSettings = async (
+  settings: WaterTrackingSettings
+): Promise<void> => {
+  await Promise.all([
+    setSetting(WATER_TRACKING_SETTING_KEYS.enabled, settings.enabled ? 'true' : 'false'),
+    setSetting(WATER_TRACKING_SETTING_KEYS.stepAmountMl, settings.stepAmountMl.toString()),
+  ]);
+};
+
+export const getWaterIntakeByDate = async (dateString: string): Promise<number> => {
+  const db = await getDb();
+  const result = await db.getFirstAsync<{ total_ml: number | null }>(
+    `SELECT COALESCE(SUM(amount_ml), 0) AS total_ml
+     FROM water_logs
+     WHERE date(logged_at, 'localtime') = ?`,
+    [dateString]
+  );
+
+  return result?.total_ml ?? 0;
+};
+
+export const adjustWaterIntakeByDate = async (
+  dateString: string,
+  deltaMl: number,
+  loggedAt?: string
+): Promise<number> => {
+  const db = await getDb();
+  const currentTotal = await getWaterIntakeByDate(dateString);
+  const normalizedDelta = deltaMl < 0 ? Math.max(deltaMl, -currentTotal) : deltaMl;
+
+  if (normalizedDelta === 0) {
+    return currentTotal;
+  }
+
+  await db.runAsync(
+    `INSERT INTO water_logs (amount_ml, logged_at)
+     VALUES (?, COALESCE(?, CURRENT_TIMESTAMP))`,
+    [normalizedDelta, loggedAt ?? null]
+  );
+
+  return currentTotal + normalizedDelta;
 };
 
 export const getWeightHistory = async (

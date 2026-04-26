@@ -1,5 +1,6 @@
 import { ScrollView, Text, View, Pressable } from '@/src/tw';
 import {
+  getMeasurementSystem,
   getLast7DayCalorieGoalStatuses,
   getLast7DayNutritionAverages,
   getLoggingStreak,
@@ -19,6 +20,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, useColorScheme } from 'react-native';
 import Svg, { Path, Rect, Text as SvgText } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  formatWeightFromKilograms,
+  getWeightUnitLabel,
+  type MeasurementSystem,
+} from '@/utils/measurements';
 
 const EMPTY_AVERAGES: NutritionAverages = {
   averageCalories: 0,
@@ -94,7 +100,15 @@ function StreakDayDot({ status }: { status: Last7DayCalorieGoalStatus['status'] 
   );
 }
 
-function WeightChart({ points, isDark }: { points: WeightHistoryPoint[]; isDark: boolean }) {
+function WeightChart({
+  points,
+  isDark,
+  measurementSystem,
+}: {
+  points: WeightHistoryPoint[];
+  isDark: boolean;
+  measurementSystem: MeasurementSystem;
+}) {
   const chartSurfaceColor = isDark ? '#000000' : '#FFFFFF';
   const chartBorderColor = isDark ? '#FFFFFF' : '#000000';
   const chartTextColor = isDark ? '#FFFFFF' : '#000000';
@@ -128,7 +142,11 @@ function WeightChart({ points, isDark }: { points: WeightHistoryPoint[]; isDark:
   const maxWeight = Math.max(...weights);
   const selectedPoint = selectedPointIndex !== null ? chartPoints[selectedPointIndex] : null;
   const selectedWeight = selectedPointIndex !== null ? points[selectedPointIndex]?.weight : null;
-  const tooltipLabel = selectedWeight !== null ? `${formatWeight(selectedWeight)} KG` : null;
+  const weightUnitLabel = getWeightUnitLabel(measurementSystem).toUpperCase();
+  const tooltipLabel =
+    selectedWeight !== null
+      ? `${formatWeightFromKilograms(selectedWeight, measurementSystem)} ${weightUnitLabel}`
+      : null;
   const tooltipWidth = tooltipLabel ? Math.max(72, tooltipLabel.length * 7 + 18) : 0;
   const tooltipX =
     selectedPoint && tooltipLabel
@@ -143,10 +161,10 @@ function WeightChart({ points, isDark }: { points: WeightHistoryPoint[]; isDark:
     >
       <View className="flex-row justify-between items-center mb-3">
         <Text className="font-mono text-xs font-black" style={{ color: chartTextColor }}>
-          LOW {formatWeight(minWeight)} KG
+          LOW {formatWeightFromKilograms(minWeight, measurementSystem)} {weightUnitLabel}
         </Text>
         <Text className="font-mono text-xs font-black" style={{ color: chartTextColor }}>
-          HIGH {formatWeight(maxWeight)} KG
+          HIGH {formatWeightFromKilograms(maxWeight, measurementSystem)} {weightUnitLabel}
         </Text>
       </View>
 
@@ -209,14 +227,6 @@ const formatAverage = (value: number, decimals: number = 1) => {
   return value.toFixed(decimals);
 };
 
-const formatWeight = (value: number) => {
-  if (Number.isInteger(value)) {
-    return value.toString();
-  }
-
-  return value.toFixed(1);
-};
-
 const formatDate = (sqlDate: string) => {
   const date = new Date(`${sqlDate}T12:00:00`);
   return date
@@ -224,16 +234,17 @@ const formatDate = (sqlDate: string) => {
     .toUpperCase();
 };
 
-const formatChangeLabel = (change: number) => {
+const formatChangeLabel = (change: number, measurementSystem: MeasurementSystem) => {
+  const weightUnitLabel = getWeightUnitLabel(measurementSystem).toUpperCase();
   if (change === 0) {
     return 'NO CHANGE';
   }
 
   if (change > 0) {
-    return `UP ${formatWeight(change)} KG`;
+    return `UP ${formatWeightFromKilograms(change, measurementSystem)} ${weightUnitLabel}`;
   }
 
-  return `DOWN ${formatWeight(Math.abs(change))} KG`;
+  return `DOWN ${formatWeightFromKilograms(Math.abs(change), measurementSystem)} ${weightUnitLabel}`;
 };
 
 export default function StatsScreen() {
@@ -243,20 +254,24 @@ export default function StatsScreen() {
   const [calorieGoalStatuses, setCalorieGoalStatuses] = useState<Last7DayCalorieGoalStatus[]>([]);
   const [weightHistory, setWeightHistory] = useState<WeightHistoryPoint[]>([]);
   const [selectedTimeframe, setSelectedTimeframe] = useState<WeightTimeframe>('30d');
+  const [measurementSystem, setMeasurementSystem] = useState<MeasurementSystem>('metric');
   const [isLoading, setIsLoading] = useState(true);
 
   const loadStaticStats = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [nextStreak, nextAverages, nextCalorieGoalStatuses] = await Promise.all([
+      const [nextStreak, nextAverages, nextCalorieGoalStatuses, nextMeasurementSystem] =
+        await Promise.all([
         getLoggingStreak(),
         getLast7DayNutritionAverages(),
         getLast7DayCalorieGoalStatuses(),
+        getMeasurementSystem(),
       ]);
 
       setStreak(nextStreak);
       setAverages(nextAverages);
       setCalorieGoalStatuses(nextCalorieGoalStatuses);
+      setMeasurementSystem(nextMeasurementSystem);
     } catch (error) {
       console.error('Failed to load statistics', error);
       Alert.alert('ERROR', 'FAILED TO LOAD STATS.');
@@ -333,7 +348,11 @@ export default function StatsScreen() {
           <View className="h-1 bg-black mb-3" />
           <Text className="font-mono text-xs font-bold text-black mb-5">{timeframeLabel}</Text>
 
-          <WeightChart points={weightHistory} isDark={isDark} />
+          <WeightChart
+            points={weightHistory}
+            isDark={isDark}
+            measurementSystem={measurementSystem}
+          />
 
           <View className="flex-row mt-5 mb-4 gap-2">
             {TIMEFRAME_OPTIONS.map((option) => (
@@ -348,7 +367,7 @@ export default function StatsScreen() {
 
           <Text className="font-mono text-sm font-black text-black">
             {weightHistory.length > 1
-              ? `TOTAL CHANGE: ${formatChangeLabel(changeSummary.change)}`
+              ? `TOTAL CHANGE: ${formatChangeLabel(changeSummary.change, measurementSystem)}`
               : weightHistory.length === 1
                 ? 'ONLY ONE DATA POINT. CHANGE COMES LATER.'
                 : 'NO CHANGE TEXT YET BECAUSE THERE IS NO DATA YET.'}

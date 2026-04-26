@@ -67,4 +67,25 @@ describe('settings screen', () => {
       });
     }, { timeout: 2000 });
   });
+
+  it('switches the app to imperial units and converts body inputs for display', async () => {
+    await dao.setSetting('bio_weight', '80');
+    await dao.setSetting('bio_height', '180');
+
+    render(<SettingsScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByText('UNITS')).toBeTruthy();
+      expect(screen.getByDisplayValue('80')).toBeTruthy();
+      expect(screen.getByDisplayValue('180')).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByText('IMPERIAL'));
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('176.4')).toBeTruthy();
+      expect(screen.getByDisplayValue('70.9')).toBeTruthy();
+      expect(dao.saveMeasurementSystem).toHaveBeenCalledWith('imperial');
+    }, { timeout: 2000 });
+  });
 });

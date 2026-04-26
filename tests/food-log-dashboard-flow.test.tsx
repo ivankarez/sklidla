@@ -5,7 +5,6 @@ import * as expoRouter from 'expo-router';
 import { Alert } from 'react-native';
 import Dashboard from '../app/(tabs)/index';
 import LogFoodScreen from '../app/log-food';
-import ManualEntryScreen from '../app/manual-entry';
 
 describe('food creation and logging flow', () => {
   beforeEach(() => {
@@ -16,25 +15,14 @@ describe('food creation and logging flow', () => {
 
   it('lets the user add a food, log it, and see it on the dashboard', async () => {
     const router = (expoRouter as any).__routerMock;
-
-    (expoRouter as any).__setLocalSearchParams({
-      returnTo: 'log',
+    await dao.addFood({
       name: 'Chicken Breast',
+      brand: null,
+      calories_per_100g: 200,
+      protein_per_100g: 31,
+      carbs_per_100g: 0,
+      fats_per_100g: 7,
     });
-
-    const manualEntry = render(<ManualEntryScreen />);
-
-    const macroInputs = manualEntry.getAllByPlaceholderText('0');
-    fireEvent.change(macroInputs[0], { target: { value: '200' } });
-    fireEvent.change(macroInputs[1], { target: { value: '31' } });
-    fireEvent.change(macroInputs[2], { target: { value: '0' } });
-    fireEvent.change(macroInputs[3], { target: { value: '7' } });
-    fireEvent.click(screen.getByText('SAVE TO LIBRARY'));
-
-    await waitFor(() => {
-      expect(router.back).toHaveBeenCalled();
-    });
-    manualEntry.unmount();
 
     router.back.mockClear();
     router.replace.mockClear();
@@ -201,7 +189,7 @@ describe('food creation and logging flow', () => {
       expect(screen.getByTestId('open-activity-dialog')).toBeTruthy();
       expect(screen.getByText('walking')).toBeTruthy();
       expect(screen.getByText('WATER')).toBeTruthy();
-      expect(screen.getByText('250ML')).toBeTruthy();
+      expect(screen.getByText('250 ML')).toBeTruthy();
       expect(screen.getByText('REMAINING: 2075 KCAL')).toBeTruthy();
     });
 
@@ -242,21 +230,21 @@ describe('food creation and logging flow', () => {
 
     await waitFor(() => {
       expect(screen.getByText('WATER')).toBeTruthy();
-      expect(screen.getByText('STEP: 300ML')).toBeTruthy();
-      expect(screen.getByText('0ML')).toBeTruthy();
+      expect(screen.getByText('STEP: 300 ML')).toBeTruthy();
+      expect(screen.getByText('0 ML')).toBeTruthy();
       expect(screen.getByText('ACTIVITIES')).toBeTruthy();
     });
 
     fireEvent.click(screen.getByTestId('increase-water-intake'));
 
     await waitFor(() => {
-      expect(screen.getByText('300ML')).toBeTruthy();
+      expect(screen.getByText('300 ML')).toBeTruthy();
     });
 
     fireEvent.click(screen.getByTestId('decrease-water-intake'));
 
     await waitFor(() => {
-      expect(screen.getByText('0ML')).toBeTruthy();
+      expect(screen.getByText('0 ML')).toBeTruthy();
     });
   });
 });

@@ -5,7 +5,12 @@ import { FlatList } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Animated } from "@/src/tw/animated";
 import { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
-import { Food, getAllFoods, searchFoods } from "../../db/dao";
+import { Food, getAllFoods, getMeasurementSystem, searchFoods } from "../../db/dao";
+import {
+  formatNutritionFromPer100g,
+  getMacroDensityLabel,
+  type MeasurementSystem,
+} from "@/utils/measurements";
 
 export default function LibraryScreen() {
   const router = useRouter();
@@ -14,6 +19,7 @@ export default function LibraryScreen() {
   const mode = params.mode ?? "manage";
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Food[]>([]);
+  const [measurementSystem, setMeasurementSystem] = useState<MeasurementSystem>("metric");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isToastMounted, setIsToastMounted] = useState(false);
   const toastOpacity = useSharedValue(0);
@@ -41,9 +47,12 @@ export default function LibraryScreen() {
 
   const loadFoods = useCallback(async () => {
     const trimmedQuery = query.trim();
-    const items =
-      trimmedQuery === "" ? await getAllFoods() : await searchFoods(trimmedQuery);
+    const [items, nextMeasurementSystem] = await Promise.all([
+      trimmedQuery === "" ? getAllFoods() : searchFoods(trimmedQuery),
+      getMeasurementSystem(),
+    ]);
     setResults(items);
+    setMeasurementSystem(nextMeasurementSystem);
   }, [query]);
 
   useEffect(() => {
@@ -214,7 +223,7 @@ export default function LibraryScreen() {
             </View>
             <View className="items-end">
               <Text className="font-mono text-sm font-bold text-black">
-                {item.calories_per_100g} kcal
+                {formatNutritionFromPer100g(item.calories_per_100g, measurementSystem)} kcal / {getMacroDensityLabel(measurementSystem).toUpperCase()}
               </Text>
             </View>
           </Pressable>

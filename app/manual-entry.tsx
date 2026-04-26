@@ -4,9 +4,19 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, useColorScheme } from 'react-native';
 import { getRandomLibraryToastMessage } from '../constants/unhinged-toast';
-import { addFood, addServingSize, deleteServingSizes, getServingSizes, getSetting, updateFood } from '@/db/dao';
+import { addFood, addServingSize, deleteServingSizes, getMeasurementSystem, getServingSizes, getSetting, updateFood } from '@/db/dao';
 import { setPendingCreatedLogFood } from '@/src/log-food-session';
 import { processFoodNameAutofill } from '../utils/ai';
+import {
+  formatFoodWeightFromGrams,
+  formatNutritionFromPer100g,
+  formatNutritionInputFromMetricString,
+  getFoodWeightUnitLabel,
+  getMacroDensityLabel,
+  normalizeFoodWeightInputToMetricString,
+  normalizeNutritionInputToMetricString,
+  type MeasurementSystem,
+} from '@/utils/measurements';
 
 export default function ManualEntryScreen() {
   const router = useRouter();
@@ -29,16 +39,14 @@ export default function ManualEntryScreen() {
   const [servings, setServings] = useState<{ name: string; weight: number }[]>([]);
   const [isAiEnabled, setIsAiEnabled] = useState(false);
   const [isNameAiLoading, setIsNameAiLoading] = useState(false);
+  const [measurementSystem, setMeasurementSystem] = useState<MeasurementSystem>('metric');
   const isNameAiDisabled = !name.trim() || isNameAiLoading;
 
   useEffect(() => {
-    const parseNumericParam = (value: unknown): string => {
-      if (value === undefined || value === null) return '';
-      const numeric = Number(value);
-      if (!Number.isFinite(numeric) || numeric < 0) return '';
-      return numeric.toString();
-    };
-    const parseServingSuggestions = (value: unknown): { name: string; weight: number }[] => {
+    const parseServingSuggestions = (
+      value: unknown,
+      nextMeasurementSystem: MeasurementSystem
+    ): { name: string; weight: number }[] => {
       if (!value) return [];
       try {
         const raw = Array.isArray(value) ? value.join('') : String(value);
@@ -49,7 +57,10 @@ export default function ManualEntryScreen() {
             const itemName = typeof item?.name === 'string' ? item.name.trim() : '';
             const itemWeight = Number(item?.weight);
             if (!itemName || !Number.isFinite(itemWeight) || itemWeight <= 0) return null;
-            return { name: itemName, weight: itemWeight };
+            return {
+              name: itemName,
+              weight: Number(formatFoodWeightFromGrams(itemWeight, nextMeasurementSystem)),
+            };
           })
           .filter((item): item is { name: string; weight: number } => item !== null);
       } catch {
@@ -57,39 +68,56 @@ export default function ManualEntryScreen() {
       }
     };
 
-    if (params.name) setName(params.name as string);
-    if (params.brand) setBrand(params.brand as string);
-    if (params.cals) setCalories(parseNumericParam(params.cals));
-    if (params.pro) setProtein(parseNumericParam(params.pro));
-    if (params.car) setCarbs(parseNumericParam(params.car));
-    if (params.fat) setFats(parseNumericParam(params.fat));
+    async function loadScreenState() {
+      const [nextMeasurementSystem, enabled] = await Promise.all([
+        getMeasurementSystem(),
+        getSetting('ai_enabled'),
+      ]);
 
-    const aiServingSuggestions = parseServingSuggestions(params.aiServings);
-    if (aiServingSuggestions.length > 0) {
-      setServings(aiServingSuggestions);
-    } else if (params.aiServingName && params.aiServingWeight) {
-      const suggestedWeight = Number(params.aiServingWeight);
-      const suggestedName = String(params.aiServingName).trim();
-      if (suggestedName && Number.isFinite(suggestedWeight) && suggestedWeight > 0) {
-        setServings([{ name: suggestedName, weight: suggestedWeight }]);
-      }
-    }
-
-    if (foodIdParam) {
-      async function loadServings() {
-        const dbServings = await getServingSizes(foodIdParam!);
-        if (!params.aiServings && !params.aiServingName && !params.aiServingWeight) {
-          setServings(dbServings.map(s => ({ name: s.name, weight: s.weight_in_grams })));
-        }
-      }
-      loadServings();
-    }
-
-    async function loadAiAvailability() {
-      const enabled = await getSetting('ai_enabled');
+      setMeasurementSystem(nextMeasurementSystem);
       setIsAiEnabled(enabled === 'true');
+
+      if (params.name) setName(params.name as string);
+      if (params.brand) setBrand(params.brand as string);
+      if (params.cals) {
+        setCalories(formatNutritionInputFromMetricString(String(params.cals), nextMeasurementSystem));
+      }
+      if (params.pro) {
+        setProtein(formatNutritionInputFromMetricString(String(params.pro), nextMeasurementSystem));
+      }
+      if (params.car) {
+        setCarbs(formatNutritionInputFromMetricString(String(params.car), nextMeasurementSystem));
+      }
+      if (params.fat) {
+        setFats(formatNutritionInputFromMetricString(String(params.fat), nextMeasurementSystem));
+      }
+
+      const aiServingSuggestions = parseServingSuggestions(params.aiServings, nextMeasurementSystem);
+      if (aiServingSuggestions.length > 0) {
+        setServings(aiServingSuggestions);
+      } else if (params.aiServingName && params.aiServingWeight) {
+        const suggestedWeight = Number(params.aiServingWeight);
+        const suggestedName = String(params.aiServingName).trim();
+        if (suggestedName && Number.isFinite(suggestedWeight) && suggestedWeight > 0) {
+          setServings([
+            {
+              name: suggestedName,
+              weight: Number(formatFoodWeightFromGrams(suggestedWeight, nextMeasurementSystem)),
+            },
+          ]);
+        }
+      } else if (foodIdParam) {
+        const dbServings = await getServingSizes(foodIdParam);
+        setServings(
+          dbServings.map((s) => ({
+            name: s.name,
+            weight: Number(formatFoodWeightFromGrams(s.weight_in_grams, nextMeasurementSystem)),
+          }))
+        );
+      }
     }
-    loadAiAvailability();
+
+    void loadScreenState();
   }, [
     foodIdParam,
     params.aiServingName,
@@ -154,40 +182,50 @@ export default function ManualEntryScreen() {
       const result = await processFoodNameAutofill({
         name: trimmedName,
         brand: brand.trim() || null,
-        calories_per_100g: toNullableMetric(calories),
-        protein_per_100g: toNullableMetric(protein),
-        carbs_per_100g: toNullableMetric(carbs),
-        fats_per_100g: toNullableMetric(fats),
+        calories_per_100g: toNullableMetric(
+          normalizeNutritionInputToMetricString(calories, measurementSystem)
+        ),
+        protein_per_100g: toNullableMetric(
+          normalizeNutritionInputToMetricString(protein, measurementSystem)
+        ),
+        carbs_per_100g: toNullableMetric(
+          normalizeNutritionInputToMetricString(carbs, measurementSystem)
+        ),
+        fats_per_100g: toNullableMetric(
+          normalizeNutritionInputToMetricString(fats, measurementSystem)
+        ),
         serving_sizes: servings.length > 0
-          ? servings.map((item) => ({ name: item.name, weight_g: item.weight }))
+          ? servings.map((item) => ({
+              name: item.name,
+              weight_g: Number(normalizeFoodWeightInputToMetricString(item.weight.toString(), measurementSystem)),
+            }))
           : null,
       });
       if (!result) return;
-
-      const asMetricString = (value: number | null): string => {
-        if (value === null || value === undefined) return '';
-        if (!Number.isFinite(value) || value < 0) return '';
-        return value.toString();
-      };
 
       if (!brand.trim() && result.brand) {
         setBrand(result.brand);
       }
       if (!calories.trim() && result.calories_per_100g !== null) {
-        setCalories(asMetricString(result.calories_per_100g));
+        setCalories(formatNutritionFromPer100g(result.calories_per_100g, measurementSystem));
       }
       if (!protein.trim() && result.protein_per_100g !== null) {
-        setProtein(asMetricString(result.protein_per_100g));
+        setProtein(formatNutritionFromPer100g(result.protein_per_100g, measurementSystem));
       }
       if (!carbs.trim() && result.carbs_per_100g !== null) {
-        setCarbs(asMetricString(result.carbs_per_100g));
+        setCarbs(formatNutritionFromPer100g(result.carbs_per_100g, measurementSystem));
       }
       if (!fats.trim() && result.fats_per_100g !== null) {
-        setFats(asMetricString(result.fats_per_100g));
+        setFats(formatNutritionFromPer100g(result.fats_per_100g, measurementSystem));
       }
 
       if (servings.length === 0 && result.serving_sizes && result.serving_sizes.length > 0) {
-        setServings(result.serving_sizes.map((item) => ({ name: item.name, weight: item.weight_g })));
+        setServings(
+          result.serving_sizes.map((item) => ({
+            name: item.name,
+            weight: Number(formatFoodWeightFromGrams(item.weight_g, measurementSystem)),
+          }))
+        );
       }
     } finally {
       setIsNameAiLoading(false);
@@ -204,10 +242,14 @@ export default function ManualEntryScreen() {
       const foodData = {
         name,
         brand: brand || null,
-        calories_per_100g: parseFloat(calories),
-        protein_per_100g: parseFloat(protein),
-        carbs_per_100g: parseFloat(carbs),
-        fats_per_100g: parseFloat(fats),
+        calories_per_100g: parseFloat(
+          normalizeNutritionInputToMetricString(calories, measurementSystem)
+        ),
+        protein_per_100g: parseFloat(
+          normalizeNutritionInputToMetricString(protein, measurementSystem)
+        ),
+        carbs_per_100g: parseFloat(normalizeNutritionInputToMetricString(carbs, measurementSystem)),
+        fats_per_100g: parseFloat(normalizeNutritionInputToMetricString(fats, measurementSystem)),
       };
 
       let foodId: number;
@@ -220,7 +262,11 @@ export default function ManualEntryScreen() {
       }
 
       for (const serving of servings) {
-        await addServingSize(foodId, serving.name, serving.weight);
+        await addServingSize(
+          foodId,
+          serving.name,
+          parseFloat(normalizeFoodWeightInputToMetricString(serving.weight.toString(), measurementSystem))
+        );
       }
 
       if (returnTo === 'library') {
@@ -326,7 +372,9 @@ export default function ManualEntryScreen() {
         </View>
 
         <View className="mb-7.5">
-          <Text className="font-mono text-lg font-black text-black mb-1.5">MACROS PER 100g</Text>
+          <Text className="font-mono text-lg font-black text-black mb-1.5">
+            MACROS PER {getMacroDensityLabel(measurementSystem)}
+          </Text>
           <View className="h-1 bg-black mb-4" />
 
           <View className="flex-row">
@@ -383,7 +431,9 @@ export default function ManualEntryScreen() {
           
           {servings.map((s, i) => (
             <View key={i} className="p-2.5 border-2 border-black mb-2.5 flex-row justify-between items-center">
-              <Text className="font-mono text-sm font-bold text-black">{s.name} = {s.weight}g</Text>
+              <Text className="font-mono text-sm font-bold text-black">
+                {s.name} = {s.weight}{getFoodWeightUnitLabel(measurementSystem)}
+              </Text>
               <Pressable onPress={() => handleRemoveServing(i)}>
                 <Text className="font-mono text-xs font-bold text-gray-400">[REMOVE]</Text>
               </Pressable>
@@ -402,7 +452,9 @@ export default function ManualEntryScreen() {
               />
             </View>
             <View className="flex-1 mr-2.5 mb-4">
-              <Text className="font-mono text-xs font-bold text-black mb-1">WEIGHT (g)</Text>
+              <Text className="font-mono text-xs font-bold text-black mb-1">
+                WEIGHT ({getFoodWeightUnitLabel(measurementSystem)})
+              </Text>
               <TextInput
                 className="font-mono border-2 border-black bg-white p-2.5 text-sm text-black"
                 value={servingWeight}

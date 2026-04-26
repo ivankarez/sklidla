@@ -405,4 +405,20 @@ describe('statistics screen', () => {
       expect(screen.getByText('80.8 KG')).toBeTruthy();
     });
   });
+
+  it('renders weight trend labels in imperial when the preference is set', async () => {
+    await dao.setSetting('measurement_system', 'imperial');
+    (dao as any).__setMockWeightLogs([
+      { id: 1, weight: 81.4, logged_at: createWeightLoggedAt(5) },
+      { id: 2, weight: 80.8, logged_at: createWeightLoggedAt(3) },
+      { id: 3, weight: 80.1, logged_at: createWeightLoggedAt(1) },
+    ]);
+
+    render(<StatsScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByText('176.6 LB')).toBeTruthy();
+      expect(screen.getByText('TOTAL CHANGE: DOWN 2.9 LB')).toBeTruthy();
+    });
+  });
 });

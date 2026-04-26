@@ -95,6 +95,7 @@ describe('statistics screen', () => {
   });
 
   it('shows the streak and 7-day averages from recent logged days', async () => {
+    await dao.setSetting('goal_calories', '450');
     (dao as any).__setMockLogs([
       {
         id: 1,
@@ -184,6 +185,9 @@ describe('statistics screen', () => {
       expect(screen.getByText('37.5')).toBeTruthy();
       expect(screen.getByText('45')).toBeTruthy();
       expect(screen.getByText('20')).toBeTruthy();
+      expect(screen.getAllByLabelText('streak-day-over')).toHaveLength(3);
+      expect(screen.getAllByLabelText('streak-day-met')).toHaveLength(1);
+      expect(screen.getAllByLabelText('streak-day-no_logs')).toHaveLength(3);
     });
   });
 

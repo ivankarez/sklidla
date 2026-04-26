@@ -1,5 +1,6 @@
 import { ScrollView, Text, View, Pressable } from '@/src/tw';
 import {
+  getLast7DayCalorieGoalStatuses,
   getLast7DayNutritionAverages,
   getLoggingStreak,
   getWeightHistory,
@@ -8,6 +9,7 @@ import {
   buildSvgLinePath,
   buildWeightChartPoints,
   summarizeWeightChange,
+  type Last7DayCalorieGoalStatus,
   type WeightHistoryPoint,
   type WeightTimeframe,
   type NutritionAverages,
@@ -71,6 +73,24 @@ function TimeframeButton({
         {label}
       </Text>
     </Pressable>
+  );
+}
+
+function StreakDayDot({ status }: { status: Last7DayCalorieGoalStatus['status'] }) {
+  const symbol = status === 'met' ? '\u2713' : status === 'over' ? 'X' : '';
+  const isFilled = status !== 'no_logs';
+
+  return (
+    <View
+      accessibilityLabel={`streak-day-${status}`}
+      className={`w-7 h-7 rounded-full border-2 border-black items-center justify-center ${
+        isFilled ? 'bg-black' : 'bg-white'
+      }`}
+    >
+      <Text className={`font-mono text-xs font-black ${isFilled ? 'text-white' : 'text-black'}`}>
+        {symbol}
+      </Text>
+    </View>
   );
 }
 
@@ -221,6 +241,7 @@ export default function StatsScreen() {
   const hasLoadedOnceRef = useRef(false);
   const [streak, setStreak] = useState(0);
   const [averages, setAverages] = useState<NutritionAverages>(EMPTY_AVERAGES);
+  const [calorieGoalStatuses, setCalorieGoalStatuses] = useState<Last7DayCalorieGoalStatus[]>([]);
   const [weightHistory, setWeightHistory] = useState<WeightHistoryPoint[]>([]);
   const [selectedTimeframe, setSelectedTimeframe] = useState<WeightTimeframe>('30d');
   const [isLoading, setIsLoading] = useState(true);
@@ -231,14 +252,16 @@ export default function StatsScreen() {
     }
 
     try {
-      const [nextStreak, nextAverages, nextWeightHistory] = await Promise.all([
+      const [nextStreak, nextAverages, nextCalorieGoalStatuses, nextWeightHistory] = await Promise.all([
         getLoggingStreak(),
         getLast7DayNutritionAverages(),
+        getLast7DayCalorieGoalStatuses(),
         getWeightHistory(selectedTimeframe),
       ]);
 
       setStreak(nextStreak);
       setAverages(nextAverages);
+      setCalorieGoalStatuses(nextCalorieGoalStatuses);
       setWeightHistory(nextWeightHistory);
     } catch (error) {
       console.error('Failed to load statistics', error);
@@ -287,6 +310,11 @@ export default function StatsScreen() {
               {streak}
             </Text>
             <Text className="font-mono text-base font-black text-black mt-3">DAYS IN A ROW</Text>
+            <View className="flex-row justify-center gap-2 mt-4">
+              {calorieGoalStatuses.map((day) => (
+                <StreakDayDot key={day.loggedDate} status={day.status} />
+              ))}
+            </View>
           </View>
 
           <Text className="font-mono text-sm font-bold text-black mt-4">
